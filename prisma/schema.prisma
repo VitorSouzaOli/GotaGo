@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  username      String   @unique
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  avatarUrl     String?  @map("avatar_url")
+  weight        Float?
+  dailyGoal     Int      @default(2000) @map("daily_goal")
+  currentStreak Int      @default(0) @map("current_streak")
+  maxStreak     Int      @default(0) @map("max_streak")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  waterLogs        WaterLog[]
+  ownedLeagues     League[]          @relation("LeagueOwner")
+  leagueMemberships LeagueMember[]
+  achievements     UserAchievement[]
+
+  @@map("users")
+}
+
+model WaterLog {
+  id        String   @id @default(uuid())
+  amount    Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("water_logs")
+}
+
+model League {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  code        String    @unique // Código de convite (ex: "GOTA-8X91")
+  startDate   DateTime  @default(now()) @map("start_date")
+  endDate     DateTime? @map("end_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  ownerId String @map("owner_id")
+  owner   User   @relation("LeagueOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  members LeagueMember[]
+
+  @@map("leagues")
+}
+
+model LeagueMember {
+  id       String   @id @default(uuid())
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  leagueId String @map("league_id")
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, userId])
+  @@map("league_members")
+}
+
+model Achievement {
+  id          String   @id @default(uuid())
+  code        String   @unique // ex: "FIRST_LOG", "STREAK_7_DAYS"
+  name        String
+  description String
+  iconUrl     String?  @map("icon_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id         String   @id @default(uuid())
+  unlockedAt DateTime @default(now()) @map("unlocked_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  achievementId String      @map("achievement_id")
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
