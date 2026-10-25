@@ -1,3 +1,6 @@
+import 'dart:math';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../models/user_model.dart';
@@ -6,7 +9,9 @@ import '../services/api_service.dart';
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
 class AuthProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  AuthProvider(this._apiService);
 
   AuthStatus _status = AuthStatus.unknown;
   UserModel? _user;
@@ -19,26 +24,18 @@ class AuthProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
 
-  AuthProvider() {
-    checkAuthStatus();
-  }
-
-  // Verifica se já temos um userId salvo no dispositivo
+  // Verifica se já temos um utilizador salvo no dispositivo
   Future<void> checkAuthStatus() async {
-    final storedUserId = await _apiService.getUserId();
-    if (storedUserId != null && storedUserId.isNotEmpty) {
-      _status = AuthStatus.authenticated;
-    } else {
-      _status = AuthStatus.unauthenticated;
-    }
+    _user = await _apiService.getUser();
+    _status = _user != null
+        ? AuthStatus.authenticated
+        : AuthStatus.unauthenticated;
     notifyListeners();
   }
 
   // Login via POST /sessions
   Future<bool> login(String login, String password) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+    _startLoading();
 
     try {
       final response = await _apiService.client.post(
@@ -49,33 +46,120 @@ class AuthProvider extends ChangeNotifier {
         },
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // Backend devolve { "user": { "id": "...", ... } }
-        final userData = response.data['user'];
-        _user = UserModel.fromJson(userData);
-
-        // Guarda o ID temporariamente enquanto não usamos JWT
-        await _apiService.saveUserId(_user!.id);
-
-        _status = AuthStatus.authenticated;
-        _isLoading = false;
-        notifyListeners();
-        return true;
-      }
+      // Backend devolve { "user": { "id": "...", ... } }
+      await _authenticate(UserModel.fromJson(response.data['user']));
+      return true;
     } catch (e) {
-      _errorMessage = 'Falha ao autenticar. Verifique o login/senha ou a conexão com a API.';
+      _fail(
+        apiErrorMessage(
+          e,
+          known: {'Invalid credentials': 'E-mail ou senha incorretos.'},
+          fallback: 'Não foi possível entrar. Tente novamente.',
+        ),
+      );
+      return false;
+    }
+  }
+
+  // Cadastro via POST /users
+  Future<bool> register({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    _startLoading();
+
+    final baseUsername = _usernameFromEmail(email);
+
+    Future<Response> createUser(String username) {
+      return _apiService.client.post(
+        '/users',
+        data: {
+          'name': name,
+          'username': username,
+          'email': email,
+          'password': password,
+        },
+      );
     }
 
-    _isLoading = false;
-    _status = AuthStatus.unauthenticated;
+    try {
+      Response response;
+      try {
+        response = await createUser(baseUsername);
+      } on DioException catch (e) {
+        final data = e.response?.data;
+        if (data is! Map || data['error'] != 'Username already exists') {
+          rethrow;
+        }
+        // Username já usado: tenta de novo com um sufixo numérico
+        final suffix = Random().nextInt(9000) + 1000;
+        response = await createUser('$baseUsername$suffix');
+      }
+
+      await _authenticate(UserModel.fromJson(response.data['user']));
+      return true;
+    } catch (e) {
+      _fail(
+        apiErrorMessage(
+          e,
+          known: {'Email already exists': 'Este e-mail já está cadastrado.'},
+          fallback: 'Não foi possível criar sua conta. Tente novamente.',
+        ),
+      );
+      return false;
+    }
+  }
+
+  // O backend incrementou a streak ao bater a meta: espelha localmente
+  Future<void> incrementStreak() async {
+    final current = _user;
+    if (current == null) return;
+
+    final newStreak = current.currentStreak + 1;
+    _user = current.copyWith(
+      currentStreak: newStreak,
+      maxStreak: max(newStreak, current.maxStreak),
+    );
+    await _apiService.saveUser(_user!);
     notifyListeners();
-    return false;
   }
 
   // Logout
   Future<void> logout() async {
     await _apiService.clearStorage();
     _user = null;
+    _status = AuthStatus.unauthenticated;
+    notifyListeners();
+  }
+
+  // O formulário de cadastro não pede username, então ele é derivado do e-mail
+  String _usernameFromEmail(String email) {
+    final localPart = email
+        .split('@')
+        .first
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9._]'), '');
+    return localPart.length >= 3 ? localPart : '${localPart}gota';
+  }
+
+  void _startLoading() {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  Future<void> _authenticate(UserModel user) async {
+    _user = user;
+    await _apiService.saveUser(user);
+    _status = AuthStatus.authenticated;
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  void _fail(String message) {
+    _errorMessage = message;
+    _isLoading = false;
     _status = AuthStatus.unauthenticated;
     notifyListeners();
   }

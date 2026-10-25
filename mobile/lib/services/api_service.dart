@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import '../models/user_model.dart';
 
 class ApiService {
   final Dio _dio = Dio();
@@ -29,16 +33,50 @@ class ApiService {
 
   Dio get client => _dio;
 
-  // Métodos auxiliares de armazenamento (para guardar userId agora ou JWT no futuro)
-  Future<void> saveUserId(String userId) async {
-    await _storage.write(key: 'user_id', value: userId);
+  // Guarda o utilizador inteiro para restaurar a sessão ao reabrir o app
+  // (enquanto não usamos JWT nem temos GET /me no backend)
+  Future<void> saveUser(UserModel user) async {
+    await _storage.write(key: 'user', value: jsonEncode(user.toJson()));
   }
 
-  Future<String?> getUserId() async {
-    return await _storage.read(key: 'user_id');
+  Future<UserModel?> getUser() async {
+    final raw = await _storage.read(key: 'user');
+    if (raw == null || raw.isEmpty) return null;
+    return UserModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+  }
+
+  // Leitura e escrita genéricas para outros dados locais (ex.: total do dia)
+  Future<void> writeValue(String key, String value) async {
+    await _storage.write(key: key, value: value);
+  }
+
+  Future<String?> readValue(String key) async {
+    return await _storage.read(key: key);
   }
 
   Future<void> clearStorage() async {
     await _storage.deleteAll();
   }
+}
+
+// Converte erros da API numa mensagem amigável em português.
+// `known` traduz as mensagens de erro que o backend devolve em { "error": "..." }.
+String apiErrorMessage(
+  Object error, {
+  Map<String, String> known = const {},
+  String fallback = 'Algo deu errado. Tente novamente.',
+}) {
+  if (error is DioException) {
+    if (error.response == null) {
+      return 'Não foi possível conectar ao servidor. Verifique sua conexão.';
+    }
+
+    final data = error.response!.data;
+    final serverMessage = data is Map ? data['error'] : null;
+    if (serverMessage is String && known.containsKey(serverMessage)) {
+      return known[serverMessage]!;
+    }
+  }
+
+  return fallback;
 }

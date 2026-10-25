@@ -6,7 +6,7 @@ import '../../../providers/auth_provider.dart';
 import '../../painters/drop_painter.dart';
 import '../../painters/ripple_painter.dart';
 import '../../widgets/gotago_logo.dart';
-import '../placeholders.dart';
+import '../home/home_shell.dart';
 import '../welcome/welcome_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -112,7 +112,7 @@ class _SplashScreenState extends State<SplashScreen>
     if (authProvider.isAuthenticated) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const HomeScreenPlaceholder()),
+        MaterialPageRoute(builder: (_) => const HomeShell()),
       );
     } else {
       Navigator.pushReplacement(

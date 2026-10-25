@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../painters/trophy_painter.dart';
 import '../../widgets/gotago_logo.dart';
-import '../placeholders.dart';
+import '../auth/login_screen.dart';
+import '../auth/register_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -41,7 +41,7 @@ class WelcomeScreen extends StatelessWidget {
                 Text(
                   'Um gole de cada vez.\nUm time com você.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: TextStyle(
                     fontSize: 27,
                     fontWeight: FontWeight.w800,
                     height: 1.2,
@@ -53,7 +53,7 @@ class WelcomeScreen extends StatelessWidget {
                 Text(
                   'Crie o hábito de beber água e desafie\nseus amigos. Cada um no seu ritmo.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: TextStyle(
                     fontSize: 15,
                     height: 1.45,
                     color: AppColors.textSecondary,
@@ -67,7 +67,7 @@ class WelcomeScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const RegisterScreenPlaceholder(),
+                        builder: (_) => const RegisterScreen(),
                       ),
                     );
                   },
@@ -92,7 +92,7 @@ class WelcomeScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const LoginScreenPlaceholder(),
+                        builder: (_) => const LoginScreen(),
                       ),
                     );
                   },
@@ -122,7 +122,7 @@ class WelcomeScreen extends StatelessWidget {
                     ],
                   ),
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: TextStyle(
                     fontSize: 12,
                     height: 1.5,
                     color: AppColors.textSecondary,

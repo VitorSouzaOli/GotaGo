@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_colors.dart';
 
@@ -14,20 +13,33 @@ class GotaGoLogo extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        RichText(
-          text: TextSpan(
-            style: GoogleFonts.plusJakartaSans(
+        Text.rich(
+          TextSpan(
+            style: TextStyle(
               fontSize: fontSize,
               fontWeight: FontWeight.w800,
               color: AppColors.primaryDark,
               letterSpacing: -fontSize * 0.03,
               height: 1.0,
             ),
-            children: const [
-              TextSpan(text: 'GotaGo'),
-              TextSpan(
-                text: '.',
-                style: TextStyle(color: AppColors.tealPrimary),
+            children: [
+              const TextSpan(text: 'GotaGo'),
+              // Ponto redondo desenhado (o "." da fonte é quadrado),
+              // apoiado na linha de base como um ponto final.
+              // aboveBaseline (e não baseline) porque não precisa perguntar a
+              // linha de base ao Container, o que quebra dentro de IntrinsicHeight.
+              WidgetSpan(
+                alignment: PlaceholderAlignment.aboveBaseline,
+                baseline: TextBaseline.alphabetic,
+                child: Container(
+                  width: fontSize * 0.18,
+                  height: fontSize * 0.18,
+                  margin: EdgeInsets.only(left: fontSize * 0.05),
+                  decoration: const BoxDecoration(
+                    color: AppColors.tealPrimary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
               ),
             ],
           ),
@@ -36,7 +48,7 @@ class GotaGoLogo extends StatelessWidget {
           SizedBox(height: fontSize * 0.14),
           Text(
             'HIDRATAÇÃO EM EQUIPE',
-            style: GoogleFonts.plusJakartaSans(
+            style: TextStyle(
               fontSize: fontSize * 0.17,
               fontWeight: FontWeight.w700,
               letterSpacing: fontSize * 0.02,
