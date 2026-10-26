@@ -21,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   static final _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
@@ -29,6 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -50,8 +52,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final hasLetter = password.contains(RegExp(r'[A-Za-z]'));
     final hasNumber = password.contains(RegExp(r'[0-9]'));
     if (password.length < 8 || !hasLetter || !hasNumber) {
-      return 'Use pelo menos 8 caracteres, com letras e números.';
+      // A regra completa aparece logo abaixo do campo de confirmação
+      return 'A senha não atende à regra abaixo.';
     }
+    return null;
+  }
+
+  String? _validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) return 'Repita a senha';
+    if (value != _passwordController.text) return 'As senhas não são iguais';
     return null;
   }
 
@@ -128,12 +137,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   hint: 'Crie uma senha',
                   controller: _passwordController,
                   isPassword: true,
-                  helperText:
-                      'Use pelo menos 8 caracteres, com letras e números.',
-                  textInputAction: TextInputAction.done,
+                  textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.newPassword],
                   validator: _validatePassword,
+                ),
+                const SizedBox(height: 18),
+                AppTextField(
+                  label: 'Confirmar senha',
+                  hint: 'Repita a senha',
+                  controller: _confirmPasswordController,
+                  isPassword: true,
+                  textInputAction: TextInputAction.done,
+                  autofillHints: const [AutofillHints.newPassword],
+                  validator: _validateConfirmPassword,
                   onSubmitted: (_) => _submit(),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Use pelo menos 8 caracteres, com letras e números.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),

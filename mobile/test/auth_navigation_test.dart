@@ -57,6 +57,21 @@ void main() {
   testWidgets('Boas-vindas abre o Cadastro', (tester) async {
     await openFromWelcome(tester, 'Criar minha conta');
     expect(find.text('Bora começar?'), findsOneWidget);
-    expect(find.byType(TextFormField), findsNWidgets(3));
+    expect(find.byType(TextFormField), findsNWidgets(4));
+    expect(find.text('Confirmar senha'), findsOneWidget);
+  });
+
+  testWidgets('Cadastro recusa senhas diferentes', (tester) async {
+    await openFromWelcome(tester, 'Criar minha conta');
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'Vitor');
+    await tester.enterText(fields.at(1), 'vitor@gotago.com');
+    await tester.enterText(fields.at(2), 'gota2026');
+    await tester.enterText(fields.at(3), 'gota2025');
+    await tester.tap(find.text('Criar conta'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('As senhas não são iguais'), findsOneWidget);
   });
 }
