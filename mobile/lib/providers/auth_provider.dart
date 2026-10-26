@@ -27,6 +27,13 @@ class AuthProvider extends ChangeNotifier {
   // Verifica se já temos um utilizador salvo no dispositivo
   Future<void> checkAuthStatus() async {
     _user = await _apiService.getUser();
+
+    // Sessão salva no modo demo não existe na API real: pede login de novo
+    if (_user?.id == ApiService.mockUserId && !ApiService.useMock) {
+      await _apiService.clearStorage();
+      _user = null;
+    }
+
     _status = _user != null
         ? AuthStatus.authenticated
         : AuthStatus.unauthenticated;

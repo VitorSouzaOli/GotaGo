@@ -39,8 +39,13 @@ Com o emulador Android aberto, em outro terminal:
 ```bash
 cd mobile
 flutter pub get
-flutter run
+flutter run --dart-define=MOCK_API=false
 ```
+
+> **Atenção:** o `flutter run` puro abre o app no **modo demo**, com dados falsos e sem
+> chamar o backend (ver abaixo). Pra testar com a API, use sempre
+> `--dart-define=MOCK_API=false`. No VS Code, escolha a configuração
+> **"GotaGo (API real)"** em *Run and Debug*.
 
 O app abre na splash animada. Depois vem a tela de boas-vindas. Crie uma conta e
 você chega na Home.
@@ -50,6 +55,24 @@ você chega na Home.
 - **Durante o desenvolvimento:** `r` no terminal faz hot reload e `R` faz hot restart.
   Mudanças no `pubspec.yaml`, nas fontes ou no ícone exigem parar e rodar
   `flutter run` de novo.
+
+### Modo demo (sem backend)
+
+| Comando | Modo |
+|---|---|
+| `flutter run` | **Demo** (padrão em debug) |
+| `flutter run --dart-define=MOCK_API=false` | API real |
+| `flutter build ...` (release) | API real, a menos que passe `MOCK_API=true` |
+
+No modo demo, o [`MockApiInterceptor`](lib/services/mock_api_interceptor.dart)
+responde com dados falsos às rotas de cadastro, login, registro de água e
+conquistas, e aparece uma faixa **DEMO** no canto da tela.
+
+- **Login:** qualquer e-mail e senha entram como "Vitor Souza", com meta de
+  2.500 ml e 6 dias de constância.
+- **Dados:** ficam só na memória e somem quando o app é fechado.
+- **Sessão:** ao abrir com a API real, uma sessão salva no modo demo é descartada
+  automaticamente e o app pede login de novo.
 
 ### Endereço da API
 

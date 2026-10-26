@@ -32,6 +32,14 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         home: const SplashScreen(),
+        // Faixa "DEMO" no canto quando os dados são falsos (MOCK_API=true)
+        builder: (context, child) => ApiService.useMock
+            ? Banner(
+                message: 'DEMO',
+                location: BannerLocation.topEnd,
+                child: child!,
+              )
+            : child!,
       ),
     );
   }

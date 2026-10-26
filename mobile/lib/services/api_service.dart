@@ -1,9 +1,11 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../models/user_model.dart';
+import 'mock_api_interceptor.dart';
 
 class ApiService {
   final Dio _dio = Dio();
@@ -12,10 +14,25 @@ class ApiService {
   // URL para o Emulador Android (porta 3333)
   static const String _baseUrl = 'http://10.0.2.2:3333';
 
+  // Modo demo (dados falsos, sem backend).
+  // Sem a flag: ligado em debug (`flutter run`) e desligado em release.
+  // API real em debug: flutter run --dart-define=MOCK_API=false
+  static const bool useMock = bool.hasEnvironment('MOCK_API')
+      ? bool.fromEnvironment('MOCK_API')
+      : kDebugMode;
+
+  // Id do utilizador falso devolvido pelo MockApiInterceptor
+  static const String mockUserId = 'demo-user';
+
   ApiService() {
     _dio.options.baseUrl = _baseUrl;
     _dio.options.connectTimeout = const Duration(seconds: 10);
     _dio.options.receiveTimeout = const Duration(seconds: 10);
+
+    if (useMock) {
+      _dio.interceptors.add(MockApiInterceptor());
+      return;
+    }
 
     // Preparado para injetar o JWT futuramente
     _dio.interceptors.add(
