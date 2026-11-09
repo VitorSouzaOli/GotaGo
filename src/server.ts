@@ -1,4 +1,6 @@
 import Fastify from "fastify";
+import cors from "@fastify/cors";
+import jwt from "@fastify/jwt";
 import { userRoutes } from "./routes/user-routes.js";
 import { sessionRoutes } from "./routes/session-routes.js";
 import { waterLogRoutes } from "./routes/water-logs-route.js";
@@ -8,6 +10,25 @@ import { errorHandler } from "./lib/error-handler.js";
 
 const app = Fastify({
   logger: true,
+});
+
+const jwtSecret = process.env.JWT_SECRET;
+
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET não definido. Configure-o no arquivo .env");
+}
+
+// CORS: define quais origens (sites) podem chamar a API pelo navegador.
+// Sem CORS_ORIGIN no .env, libera todas (útil em desenvolvimento).
+app.register(cors, {
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
+    : true,
+});
+
+// JWT: habilita criar (jwtSign) e verificar (jwtVerify) tokens com a chave secreta.
+app.register(jwt, {
+  secret: jwtSecret,
 });
 
 app.get("/health", async () => {

@@ -30,7 +30,11 @@ export async function sessionRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: "Invalid credentials" });
     }
 
+    // Gera o token: "sub" guarda o ID do usuário e ele expira em 7 dias
+    const token = await reply.jwtSign({ sub: user.id }, { expiresIn: "7d" });
+
     return reply.status(200).send({
+      token,
       user: {
         id: user.id,
         name: user.name,
