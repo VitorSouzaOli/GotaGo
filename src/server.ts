@@ -4,6 +4,7 @@ import { sessionRoutes } from "./routes/session-routes.js";
 import { waterLogRoutes } from "./routes/water-logs-route.js";
 import { leagueRoutes } from "./routes/league-route.js";
 import { achievementRoutes } from "./routes/achieviments-route.js";
+import { errorHandler } from "./lib/error-handler.js";
 
 const app = Fastify({
   logger: true,
@@ -19,6 +20,9 @@ app.register(sessionRoutes);
 app.register(waterLogRoutes);
 app.register(leagueRoutes);
 app.register(achievementRoutes);
+
+// Tratamento global de erros (Zod, erros HTTP e falhas inesperadas)
+app.setErrorHandler(errorHandler);
 
 const start = async () => {
   try {
