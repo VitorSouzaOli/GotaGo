@@ -1,18 +1,21 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { authenticate } from "../middlewares/authenticate.js";
 import { checkAndUnlockAchievements } from "../utils/check-achieviments.js";
 
 export async function waterLogRoutes(app: FastifyInstance) {
-  app.post("/water-logs", async (request, reply) => {
+  app.post("/water-logs", { onRequest: [authenticate] }, async (request, reply) => {
     const createWaterLogBodySchema = z.object({
-      userId: z.uuid("ID de utilizador inválido"),
       amount: z
         .number()
         .positive("A quantidade consumida deve ser maior que 0"),
     });
 
-    const { userId, amount } = createWaterLogBodySchema.parse(request.body);
+    const { amount } = createWaterLogBodySchema.parse(request.body);
+
+    // O usuário vem do token, não do corpo: ninguém registra água por outra pessoa
+    const userId = request.user.sub;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },

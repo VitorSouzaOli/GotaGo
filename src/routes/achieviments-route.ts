@@ -1,15 +1,21 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { authenticate } from "../middlewares/authenticate.js";
 
 export async function achievementRoutes(app: FastifyInstance) {
   // Obter todas as conquistas do utilizador (desbloqueadas e pendentes)
-  app.get("/users/:userId/achievements", async (request, reply) => {
+  app.get("/users/:userId/achievements", { onRequest: [authenticate] }, async (request, reply) => {
     const getAchievementsParamsSchema = z.object({
       userId: z.uuid("ID de utilizador inválido"),
     });
 
     const { userId } = getAchievementsParamsSchema.parse(request.params);
+
+    // Cada usuário só pode ver as suas próprias conquistas
+    if (userId !== request.user.sub) {
+      return reply.status(403).send({ error: "Acesso negado." });
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },

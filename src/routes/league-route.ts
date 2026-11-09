@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { authenticate } from "../middlewares/authenticate.js";
 
 // Função para gerar um código aleatório de convite para a liga
 function generateLeagueCode(): string {
@@ -14,18 +15,21 @@ function generateLeagueCode(): string {
 
 export async function leagueRoutes(app: FastifyInstance) {
   // 1. Criar uma nova Liga
-  app.post("/leagues", async (request, reply) => {
+  app.post("/leagues", { onRequest: [authenticate] }, async (request, reply) => {
     const createLeagueBodySchema = z.object({
       name: z
         .string()
         .min(3, "O nome da liga deve ter pelo menos 3 caracteres"),
       description: z.string().optional(),
-      ownerId: z.uuid("ID de utilizador inválido"),
       endDate: z.iso.datetime().optional(),
     });
 
-    const { name, description, ownerId, endDate } =
-      createLeagueBodySchema.parse(request.body);
+    const { name, description, endDate } = createLeagueBodySchema.parse(
+      request.body,
+    );
+
+    // O criador da liga é quem está autenticado
+    const ownerId = request.user.sub;
 
     const owner = await prisma.user.findUnique({
       where: { id: ownerId },
@@ -75,13 +79,13 @@ export async function leagueRoutes(app: FastifyInstance) {
   });
 
   // 2. Entrar numa Liga através do código de convite
-  app.post("/leagues/join", async (request, reply) => {
+  app.post("/leagues/join", { onRequest: [authenticate] }, async (request, reply) => {
     const joinLeagueBodySchema = z.object({
-      userId: z.uuid("ID de utilizador inválido"),
       code: z.string().min(1, "O código da liga é obrigatório").toUpperCase(),
     });
 
-    const { userId, code } = joinLeagueBodySchema.parse(request.body);
+    const { code } = joinLeagueBodySchema.parse(request.body);
+    const userId = request.user.sub;
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -123,7 +127,7 @@ export async function leagueRoutes(app: FastifyInstance) {
   });
 
   // 3. Obter o Ranking (Leaderboard) da Liga
-  app.get("/leagues/:id/leaderboard", async (request, reply) => {
+  app.get("/leagues/:id/leaderboard", { onRequest: [authenticate] }, async (request, reply) => {
     const getLeaderboardParamsSchema = z.object({
       id: z.uuid("ID da liga inválido"),
     });
