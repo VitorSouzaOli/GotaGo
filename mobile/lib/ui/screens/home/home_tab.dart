@@ -6,6 +6,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../models/user_model.dart';
 import '../../../providers/achievement_provider.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/league_provider.dart';
 import '../../../providers/water_provider.dart';
 import '../../widgets/footer_note.dart';
 import '../../widgets/gotago_logo.dart';
@@ -16,8 +17,13 @@ import 'widgets/hydration_card.dart';
 class HomeTab extends StatelessWidget {
   // Troca a aba da barra de navegação (1 = Ligas, 2 = Histórico, 3 = Perfil)
   final ValueChanged<int> onNavigate;
+  final VoidCallback onOpenAchievements;
 
-  const HomeTab({super.key, required this.onNavigate});
+  const HomeTab({
+    super.key,
+    required this.onNavigate,
+    required this.onOpenAchievements,
+  });
 
   void _showMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
@@ -86,6 +92,9 @@ class HomeTab extends StatelessWidget {
 
     final water = context.watch<WaterProvider>();
     final achievements = context.watch<AchievementProvider>();
+    final leagueProvider = context.watch<LeagueProvider>();
+    final leagues = leagueProvider.leagues;
+    final selectedLeague = leagueProvider.selected;
 
     final lastLogAt = water.lastLogAt;
     final historySubtitle = lastLogAt != null
@@ -112,19 +121,27 @@ class HomeTab extends StatelessWidget {
             isAdding: water.isAdding,
             onAdd: (amount) => _addWater(context, amount),
             onCustomAmount: () => _addCustomAmount(context),
-            onEditGoal: () =>
-                _showMessage(context, 'Edição de meta em breve.'),
+            onEditGoal: () => _showMessage(context, 'Edição de meta em breve.'),
           ),
           const SizedBox(height: 16),
           StreakCard(streak: user.currentStreak),
           const SizedBox(height: 24),
           SectionHeader(
             title: 'Suas ligas',
-            actionLabel: 'Ver ligas',
+            actionLabel: leagues.isEmpty
+                ? 'Ver ligas'
+                : 'Ver ${leagues.length} ${leagues.length == 1 ? 'liga' : 'ligas'}',
             onAction: () => onNavigate(1),
           ),
           const SizedBox(height: 12),
-          LeagueEmptyCard(onTap: () => onNavigate(1)),
+          if (selectedLeague != null)
+            LeagueSummaryCard(
+              league: selectedLeague,
+              userId: user.id,
+              onTap: () => onNavigate(1),
+            )
+          else
+            LeagueEmptyCard(onTap: () => onNavigate(1)),
           const SizedBox(height: 16),
           IntrinsicHeight(
             child: Row(
@@ -144,8 +161,7 @@ class HomeTab extends StatelessWidget {
                     icon: Icons.workspace_premium_outlined,
                     title: 'Conquistas',
                     subtitle: achievementsSubtitle,
-                    onTap: () =>
-                        _showMessage(context, 'Tela de conquistas em breve.'),
+                    onTap: onOpenAchievements,
                   ),
                 ),
               ],

@@ -319,7 +319,10 @@ class _CustomAmountSheetState extends State<_CustomAmountSheet> {
               autofocus: true,
               keyboardType: TextInputType.number,
               textInputAction: TextInputAction.done,
-              style: const TextStyle(fontSize: 16, color: AppColors.primaryDark),
+              style: const TextStyle(
+                fontSize: 16,
+                color: AppColors.primaryDark,
+              ),
               decoration: const InputDecoration(
                 hintText: 'Quantidade em ml',
                 suffixText: 'ml',

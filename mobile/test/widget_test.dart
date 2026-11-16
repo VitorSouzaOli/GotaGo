@@ -31,4 +31,11 @@ void main() {
     expect(initialsOf('Vitor Souza Oliveira'), 'VO');
     expect(initialsOf('Vitor'), 'V');
   });
+
+  test('formatClock e formatInterval', () {
+    expect(formatClock(480), '08:00');
+    expect(formatClock(1260), '21:00');
+    expect(formatInterval(120), 'A cada 2 h');
+    expect(formatInterval(90), 'A cada 1h30');
+  });
 }

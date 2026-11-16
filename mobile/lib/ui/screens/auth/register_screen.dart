@@ -102,8 +102,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     return AuthLayout(
       title: 'Bora começar?',
-      subtitle:
-          'Crie sua conta e faça da hidratação\num hábito. Um gole de cada vez.',
+      subtitle: 'Crie sua conta e faça da hidratação\num hábito. Um gole de cada vez.',
       footer: const _TermsNote(),
       children: [
         Form(

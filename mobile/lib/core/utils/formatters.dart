@@ -32,3 +32,19 @@ String initialsOf(String name) {
   if (parts.length == 1) return parts.first[0].toUpperCase();
   return (parts.first[0] + parts.last[0]).toUpperCase();
 }
+
+// Minutos desde 00:00 no formato "08:00" (480 → "08:00")
+String formatClock(int minutes) {
+  final hour = (minutes ~/ 60).toString().padLeft(2, '0');
+  final minute = (minutes % 60).toString().padLeft(2, '0');
+  return '$hour:$minute';
+}
+
+// Intervalo dos lembretes: 120 → "A cada 2 h", 90 → "A cada 1h30"
+String formatInterval(int minutes) {
+  final hours = minutes ~/ 60;
+  final rest = minutes % 60;
+  if (rest == 0) return 'A cada $hours h';
+  if (hours == 0) return 'A cada $rest min';
+  return 'A cada ${hours}h${rest.toString().padLeft(2, '0')}';
+}

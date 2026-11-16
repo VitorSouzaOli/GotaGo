@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/achievement_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/league_provider.dart';
+import 'providers/settings_provider.dart';
 import 'providers/water_provider.dart';
 import 'services/api_service.dart';
 import 'ui/screens/splash/splash_screen.dart';
@@ -26,6 +28,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider(apiService)),
         ChangeNotifierProvider(create: (_) => WaterProvider(apiService)),
         ChangeNotifierProvider(create: (_) => AchievementProvider(apiService)),
+        ChangeNotifierProvider(create: (_) => LeagueProvider(apiService)),
+        ChangeNotifierProvider(create: (_) => SettingsProvider(apiService)),
       ],
       child: MaterialApp(
         title: 'GotaGo',

@@ -66,9 +66,7 @@ class WelcomeScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const RegisterScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
                     );
                   },
                   child: const Row(
@@ -91,9 +89,7 @@ class WelcomeScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const LoginScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
                     );
                   },
                   child: const Text('Já tenho conta · Entrar'),
@@ -116,8 +112,7 @@ class WelcomeScreen extends StatelessWidget {
                         ),
                       ),
                       TextSpan(
-                        text:
-                            'A disputa é pela constância, não pela quantidade.\nRespeite as necessidades do seu corpo.',
+                        text: 'A disputa é pela constância, não pela quantidade.\nRespeite as necessidades do seu corpo.',
                       ),
                     ],
                   ),

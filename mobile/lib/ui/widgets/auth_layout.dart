@@ -117,10 +117,7 @@ class _AuthTopBar extends StatelessWidget {
             color: AppColors.limeAccent,
             borderRadius: BorderRadius.circular(14),
           ),
-          child: const CustomPaint(
-            size: Size(16, 20),
-            painter: DropPainter(),
-          ),
+          child: const CustomPaint(size: Size(16, 20), painter: DropPainter()),
         ),
       ],
     );

@@ -2,11 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../providers/achievement_provider.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/league_provider.dart';
+import '../../../providers/settings_provider.dart';
 import '../../../providers/water_provider.dart';
-import '../welcome/welcome_screen.dart';
+import '../achievements/achievements_screen.dart';
+import '../history/history_screen.dart';
+import '../leagues/leagues_screen.dart';
+import '../profile/profile_page.dart';
+import '../profile/profile_screen.dart';
+import '../settings/help_screen.dart';
+import '../settings/preferences_screen.dart';
+import '../settings/privacy_screen.dart';
+import '../settings/reminders_screen.dart';
 import 'home_tab.dart';
 
 // Tela principal com a barra de navegação inferior
@@ -18,7 +27,11 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
+  static const _profileTab = 3;
+
   int _currentIndex = 0;
+  // Subtela aberta dentro da aba Perfil, mantendo a barra de navegação
+  ProfilePage _profilePage = ProfilePage.main;
 
   @override
   void initState() {
@@ -28,175 +41,102 @@ class _HomeShellState extends State<HomeShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = context.read<AuthProvider>().user;
       if (user == null) return;
-      context.read<WaterProvider>().loadToday(user.id);
+      context.read<WaterProvider>().load(user.id);
       context.read<AchievementProvider>().load(user.id);
+      context.read<LeagueProvider>().load(user.id);
+      context.read<SettingsProvider>().load();
     });
   }
 
-  void _goTo(int index) => setState(() => _currentIndex = index);
+  void _goTo(int index) {
+    setState(() {
+      // Tocar em "Perfil" (ou noutra aba) volta para a tela principal do Perfil
+      _profilePage = ProfilePage.main;
+      _currentIndex = index;
+    });
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        body: IndexedStack(
-          index: _currentIndex,
-          children: [
-            HomeTab(onNavigate: _goTo),
-            const _ComingSoonTab(
-              icon: Icons.group_outlined,
-              title: 'Ligas',
-              message: 'Crie uma liga ou entre com um código.\nEm breve.',
-            ),
-            const _ComingSoonTab(
-              icon: Icons.bar_chart_rounded,
-              title: 'Histórico',
-              message: 'Seus registros dos últimos dias.\nEm breve.',
-            ),
-            const _ProfileTab(),
-          ],
+  void _openProfilePage(ProfilePage page) {
+    setState(() {
+      _currentIndex = _profileTab;
+      _profilePage = page;
+    });
+  }
+
+  void _backToProfile() => _openProfilePage(ProfilePage.main);
+
+  Widget _buildProfileTab() {
+    // Key por subtela: cada uma começa do topo e com estado novo
+    return KeyedSubtree(
+      key: ValueKey(_profilePage),
+      child: switch (_profilePage) {
+        ProfilePage.main => ProfileScreen(onOpenPage: _openProfilePage),
+        ProfilePage.achievements => AchievementsScreen(onBack: _backToProfile),
+        ProfilePage.reminders => RemindersScreen(onBack: _backToProfile),
+        ProfilePage.preferences => PreferencesScreen(
+          onBack: _backToProfile,
+          onOpenReminders: () => _openProfilePage(ProfilePage.reminders),
         ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: _goTo,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded),
-              label: 'Início',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.group_outlined),
-              selectedIcon: Icon(Icons.group_rounded),
-              label: 'Ligas',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.bar_chart_rounded),
-              label: 'Histórico',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded),
-              label: 'Perfil',
-            ),
-          ],
+        ProfilePage.help => HelpScreen(onBack: _backToProfile),
+        ProfilePage.privacy => PrivacyScreen(
+          onBack: _backToProfile,
+          onOpenHelp: () => _openProfilePage(ProfilePage.help),
         ),
-      ),
+      },
     );
   }
-}
-
-// Abas que ainda serão desenvolvidas
-class _ComingSoonTab extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-
-  const _ComingSoonTab({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    final inSubpage = _profilePage != ProfilePage.main;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      // O "voltar" do Android fecha a subtela do Perfil antes de sair do app
+      child: PopScope(
+        canPop: !inSubpage,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _backToProfile();
+        },
+        child: Scaffold(
+          body: IndexedStack(
+            index: _currentIndex,
             children: [
-              Icon(icon, size: 48, color: AppColors.tealDark),
-              const SizedBox(height: 16),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primaryDark,
-                ),
+              HomeTab(
+                onNavigate: _goTo,
+                onOpenAchievements: () =>
+                    _openProfilePage(ProfilePage.achievements),
               ),
-              const SizedBox(height: 8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.5,
-                  color: AppColors.textSecondary,
-                ),
+              LeaguesScreen(onAvatarTap: () => _goTo(_profileTab)),
+              const HistoryScreen(),
+              _buildProfileTab(),
+            ],
+          ),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: _goTo,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Início',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.group_outlined),
+                selectedIcon: Icon(Icons.group_rounded),
+                label: 'Ligas',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.bar_chart_rounded),
+                label: 'Histórico',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Perfil',
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// Perfil provisório: dados básicos e botão de sair
-class _ProfileTab extends StatelessWidget {
-  const _ProfileTab();
-
-  Future<void> _logout(BuildContext context) async {
-    await context.read<AuthProvider>().logout();
-    if (!context.mounted) return;
-
-    context.read<WaterProvider>().clear();
-    context.read<AchievementProvider>().clear();
-
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-      (_) => false,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().user;
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Perfil',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: AppColors.primaryDark,
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (user != null) ...[
-              Text(
-                user.name,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryDark,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                user.email,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-            const Spacer(),
-            OutlinedButton(
-              onPressed: () => _logout(context),
-              child: const Text('Sair da conta'),
-            ),
-          ],
         ),
       ),
     );

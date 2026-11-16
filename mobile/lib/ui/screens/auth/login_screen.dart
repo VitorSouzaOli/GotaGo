@@ -64,8 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return AuthLayout(
       title: 'Bom te ver de novo!',
-      subtitle:
-          'Entre na sua conta e continue cuidando\ndo seu hábito, no seu ritmo.',
+      subtitle: 'Entre na sua conta e continue cuidando\ndo seu hábito, no seu ritmo.',
       footer: const FooterNote('Constância, não excesso. Respeite seu corpo.'),
       children: [
         Form(

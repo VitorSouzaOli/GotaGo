@@ -20,6 +20,12 @@ class AppColors {
   // Trilho do anel de hidratação
   static const Color ringTrack = Color(0xFFE1EFEB);
 
+  // Barra do Histórico em dia que não bateu a meta
+  static const Color barPartial = Color(0xFF9FD3DA);
+
+  // Fundo das conquistas bloqueadas
+  static const Color lockedSurface = Color(0xFFE3EFEC);
+
   // Gradiente da gota (topo → base)
   static const Color dropLight = Color(0xFF2FD0DA);
   static const Color dropDark = Color(0xFF0890A5);

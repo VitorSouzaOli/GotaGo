@@ -17,8 +17,15 @@ void main() {
   // causaria overflows que não acontecem no aparelho
   setUpAll(() async {
     final loader = FontLoader(AppTheme.fontFamily);
-    for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) {
-      final bytes = File('assets/fonts/PlusJakartaSans-$weight.ttf').readAsBytesSync();
+    for (final weight in [
+      'Regular',
+      'Medium',
+      'SemiBold',
+      'Bold',
+      'ExtraBold',
+    ]) {
+      final bytes = File('assets/fonts/PlusJakartaSans-$weight.ttf')
+          .readAsBytesSync();
       loader.addFont(Future.value(ByteData.sublistView(bytes)));
     }
     await loader.load();
@@ -35,7 +42,9 @@ void main() {
         providers: [
           ChangeNotifierProvider(create: (_) => AuthProvider(apiService)),
           ChangeNotifierProvider(create: (_) => WaterProvider(apiService)),
-          ChangeNotifierProvider(create: (_) => AchievementProvider(apiService)),
+          ChangeNotifierProvider(
+            create: (_) => AchievementProvider(apiService),
+          ),
         ],
         child: MaterialApp(
           theme: AppTheme.lightTheme,
