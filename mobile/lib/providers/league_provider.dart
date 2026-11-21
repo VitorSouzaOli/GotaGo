@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../models/league_model.dart';
@@ -115,6 +116,112 @@ class LeagueProvider extends ChangeNotifier {
       );
       return false;
     }
+  }
+
+  // Consulta a liga pelo código antes de entrar (GET /leagues/code/:code).
+  // Devolve null se o código não existir. Sem a rota no backend, devolve uma
+  // prévia só com o código, e o nome aparece depois de entrar.
+  Future<LeaguePreview?> findByCode(String code) async {
+    _startSubmitting();
+    try {
+      final response = await _apiService.client.get('/leagues/code/$code');
+      _isSubmitting = false;
+      notifyListeners();
+      return LeaguePreview.fromJson(response.data['league']);
+    } catch (e) {
+      if (isMissingRoute(e)) {
+        _isSubmitting = false;
+        notifyListeners();
+        return LeaguePreview(id: '', name: '', code: code, memberCount: 0);
+      }
+      final notFound = e is DioException && e.response?.statusCode == 404;
+      _fail(
+        notFound
+            ? 'Código inválido ou não disponível.'
+            : apiErrorMessage(e, fallback: 'Não foi possível buscar a liga.'),
+      );
+      return null;
+    }
+  }
+
+  // Sair da liga (DELETE /leagues/:id/members/:userId)
+  Future<bool> leave({required String userId, required String leagueId}) {
+    return _adminAction(userId, () async {
+      await _apiService.client.delete('/leagues/$leagueId/members/$userId');
+      _leagues = _leagues.where((l) => l.id != leagueId).toList();
+      if (_selectedId == leagueId) _selectedId = null;
+    });
+  }
+
+  // Administração (só o criador): renomear, remover membro e trocar o código
+  Future<bool> rename({
+    required String userId,
+    required String leagueId,
+    required String name,
+  }) {
+    return _adminAction(userId, () async {
+      await _apiService.client.patch(
+        '/leagues/$leagueId',
+        data: {'name': name},
+      );
+      await _refresh(leagueId);
+    });
+  }
+
+  Future<bool> removeMember({
+    required String userId,
+    required String leagueId,
+    required String memberId,
+  }) {
+    return _adminAction(userId, () async {
+      await _apiService.client.delete('/leagues/$leagueId/members/$memberId');
+      await _refresh(leagueId);
+    });
+  }
+
+  Future<bool> regenerateCode({
+    required String userId,
+    required String leagueId,
+  }) {
+    return _adminAction(userId, () async {
+      await _apiService.client.post('/leagues/$leagueId/code');
+      await _refresh(leagueId);
+    });
+  }
+
+  LeagueModel? byId(String leagueId) {
+    for (final league in _leagues) {
+      if (league.id == leagueId) return league;
+    }
+    return null;
+  }
+
+  Future<bool> _adminAction(
+    String userId,
+    Future<void> Function() action,
+  ) async {
+    _startSubmitting();
+    try {
+      await action();
+      _isSubmitting = false;
+      await _saveIds(userId);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _fail(
+        isMissingRoute(e)
+            ? missingRouteMessage
+            : apiErrorMessage(e, fallback: 'Não foi possível salvar.'),
+      );
+      return false;
+    }
+  }
+
+  // Busca o ranking de novo e substitui a liga na lista
+  Future<void> _refresh(String leagueId) async {
+    final league = await _fetchLeague(leagueId);
+    if (league == null) return;
+    _leagues = [for (final l in _leagues) l.id == leagueId ? league : l];
   }
 
   // Limpa o estado ao fazer logout

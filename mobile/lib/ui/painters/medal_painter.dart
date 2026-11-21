@@ -6,9 +6,12 @@ import '../../core/theme/app_colors.dart';
 // O ícone do centro e o selo (check/cadeado) ficam por cima, como widgets.
 // Proporção ideal: 72 x 84.
 class MedalPainter extends CustomPainter {
+  // Tema no momento do desenho: troca de tema força redesenhar
+  final bool _dark = AppColors.isDark;
+
   final bool unlocked;
 
-  const MedalPainter({required this.unlocked});
+  MedalPainter({required this.unlocked});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -52,6 +55,6 @@ class MedalPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant MedalPainter oldDelegate) {
-    return oldDelegate.unlocked != unlocked;
+    return oldDelegate._dark != _dark || oldDelegate.unlocked != unlocked;
   }
 }

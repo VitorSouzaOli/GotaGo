@@ -1,14 +1,19 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../providers/auth_provider.dart';
+import '../../../core/utils/validators.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/arrow_label.dart';
 import '../../widgets/auth_layout.dart';
+import '../../widgets/flow_page.dart';
 import '../../widgets/social_login.dart';
-import '../home/home_shell.dart';
+import '../goal/goal_screens.dart';
+import '../settings/legal_screens.dart';
+import 'password_recovery_screens.dart';
 
+// Cadastro: nome, e-mail e senha. A conta é criada na etapa seguinte,
+// "Vamos encontrar seu ritmo", junto com a meta diária.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -22,8 +27,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-
-  static final _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+  // O servidor recusou o e-mail ("Você já tem uma conta")
+  bool _emailInUse = false;
 
   @override
   void dispose() {
@@ -41,68 +46,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
-  String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Informe seu e-mail';
-    if (!_emailRegex.hasMatch(value.trim())) return 'E-mail inválido';
-    return null;
-  }
-
   String? _validatePassword(String? value) {
-    final password = value ?? '';
-    final hasLetter = password.contains(RegExp(r'[A-Za-z]'));
-    final hasNumber = password.contains(RegExp(r'[0-9]'));
-    if (password.length < 8 || !hasLetter || !hasNumber) {
-      // A regra completa aparece logo abaixo do campo de confirmação
-      return 'A senha não atende à regra abaixo.';
-    }
-    return null;
-  }
-
-  String? _validateConfirmPassword(String? value) {
-    if (value == null || value.isEmpty) return 'Repita a senha';
-    if (value != _passwordController.text) return 'As senhas não são iguais';
-    return null;
+    // A regra completa aparece logo abaixo do campo de confirmação
+    return validateNewPassword(value) == null
+        ? null
+        : 'A senha não atende à regra abaixo.';
   }
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.register(
-      name: _nameController.text.trim(),
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
+    final result = await pushPage<String>(
+      context,
+      GoalSetupScreen(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      ),
     );
-
-    if (!mounted) return;
-
-    if (success) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeShell()),
-        (_) => false,
-      );
-    } else {
-      _showMessage(
-        authProvider.errorMessage ?? 'Não foi possível criar sua conta.',
-      );
+    if (mounted && result == goalSetupEmailInUse) {
+      setState(() => _emailInUse = true);
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+  void _goToLogin() {
+    // Login fica logo abaixo das Boas-vindas: troca o Cadastro pelo Login
+    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = context.watch<AuthProvider>().isLoading;
-
     return AuthLayout(
-      title: 'Bora começar?',
-      subtitle: 'Crie sua conta e faça da hidratação\num hábito. Um gole de cada vez.',
+      title: _emailInUse ? 'Você já tem uma conta' : 'Bora começar?',
+      subtitle: _emailInUse ? 'Cadastro · E-mail já utilizado' : 'Crie sua conta e faça da hidratação\num hábito. Um gole de cada vez.',
       footer: const _TermsNote(),
       children: [
         Form(
@@ -117,6 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _nameController,
                   keyboardType: TextInputType.name,
                   textInputAction: TextInputAction.next,
+                  textCapitalization: TextCapitalization.words,
                   autofillHints: const [AutofillHints.name],
                   validator: _validateName,
                 ),
@@ -128,7 +106,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.email],
-                  validator: _validateEmail,
+                  helperText: 'Você usará este e-mail para entrar.',
+                  errorText: _emailInUse
+                      ? 'Já existe uma conta com este e-mail.'
+                      : null,
+                  onChanged: (_) {
+                    if (_emailInUse) setState(() => _emailInUse = false);
+                  },
+                  validator: validateEmail,
                 ),
                 const SizedBox(height: 18),
                 AppTextField(
@@ -148,12 +133,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   isPassword: true,
                   textInputAction: TextInputAction.done,
                   autofillHints: const [AutofillHints.newPassword],
-                  validator: _validateConfirmPassword,
+                  validator: validatePasswordConfirmation(
+                    () => _passwordController.text,
+                  ),
                   onSubmitted: (_) => _submit(),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'Use pelo menos 8 caracteres, com letras e números.',
+                Text(
+                  passwordRule,
                   style: TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
@@ -163,26 +150,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 28),
-        FilledButton(
-          onPressed: isLoading ? null : _submit,
-          child: isLoading
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white,
-                  ),
-                )
-              : const ArrowLabel('Criar conta'),
-        ),
         const SizedBox(height: 24),
-        const OrDivider(),
-        const SizedBox(height: 24),
-        GoogleButton(
-          onPressed: () => _showMessage('Cadastro com Google em breve.'),
-        ),
+        if (_emailInUse) ...[
+          const ErrorCard(
+            title: 'Entre para continuar',
+            body: 'Use sua conta existente ou recupere a senha.',
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: _goToLogin,
+            child: const Text('Ir para o login'),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () => pushPage(
+              context,
+              ForgotPasswordScreen(
+                backLabel: 'Cadastro',
+                initialEmail: _emailController.text.trim(),
+              ),
+            ),
+            child: const Text('Recuperar minha senha'),
+          ),
+        ] else ...[
+          FilledButton(
+            onPressed: _submit,
+            child: const ArrowLabel('Criar conta'),
+          ),
+          const SizedBox(height: 24),
+          const OrDivider(),
+          const SizedBox(height: 24),
+          GoogleButton(
+            onPressed: () =>
+                showAppMessage(context, 'Cadastro com Google em breve.'),
+          ),
+        ],
       ],
     );
   }
@@ -193,19 +195,31 @@ class _TermsNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const linkStyle = TextStyle(
+    final linkStyle = TextStyle(
       fontWeight: FontWeight.w700,
       color: AppColors.tealDark,
     );
 
-    return const Text.rich(
+    return Text.rich(
       TextSpan(
         children: [
-          TextSpan(text: 'Ao criar sua conta, você concorda com os nossos\n'),
-          TextSpan(text: 'Termos de uso', style: linkStyle),
-          TextSpan(text: ' e a '),
-          TextSpan(text: 'Política de privacidade', style: linkStyle),
-          TextSpan(text: '.'),
+          const TextSpan(
+            text: 'Ao criar sua conta, você concorda com os nossos\n',
+          ),
+          TextSpan(
+            text: 'Termos de uso',
+            style: linkStyle,
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => pushPage(context, const TermsScreen()),
+          ),
+          const TextSpan(text: ' e a '),
+          TextSpan(
+            text: 'Política de privacidade',
+            style: linkStyle,
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => pushPage(context, const PrivacyPolicyScreen()),
+          ),
+          const TextSpan(text: '.'),
         ],
       ),
       textAlign: TextAlign.center,

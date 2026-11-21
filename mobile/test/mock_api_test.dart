@@ -68,12 +68,12 @@ void main() {
     expect(names.take(2), ['Breno Lima', 'Vitor Souza']);
   });
 
-  test('entrar com código: GOTA-DEMO funciona e código errado falha', () async {
+  test('entrar com código: RITMO6 funciona e código errado falha', () async {
     final joined = await dio.post(
       '/leagues/join',
-      data: {'userId': 'demo-user', 'code': 'gota-demo'},
+      data: {'userId': 'demo-user', 'code': 'ritmo6'},
     );
-    expect(joined.data['membership']['leagueId'], 'league-amigos-da-academia');
+    expect(joined.data['membership']['leagueId'], 'league-ritmo-de-agua');
 
     expect(
       () => dio.post(

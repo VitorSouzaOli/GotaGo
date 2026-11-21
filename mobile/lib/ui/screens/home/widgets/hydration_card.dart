@@ -44,7 +44,7 @@ class HydrationCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Sua hidratação hoje',
                   style: TextStyle(
@@ -57,7 +57,7 @@ class HydrationCard extends StatelessWidget {
               InkWell(
                 onTap: onEditGoal,
                 borderRadius: BorderRadius.circular(8),
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                   child: Row(
                     children: [
@@ -117,7 +117,7 @@ class HydrationCard extends StatelessWidget {
                           children: [
                             Text(
                               formatMl(total),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 44,
                                 fontWeight: FontWeight.w800,
                                 height: 1.0,
@@ -126,7 +126,7 @@ class HydrationCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            const Text(
+                            Text(
                               'ml',
                               style: TextStyle(
                                 fontSize: 17,
@@ -140,7 +140,7 @@ class HydrationCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         'de ${formatMl(goal)} ml',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           color: AppColors.textSecondary,
                         ),
@@ -157,7 +157,7 @@ class HydrationCard extends StatelessWidget {
                         ),
                         child: Text(
                           '$percent% da meta',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                             color: AppColors.tealDark,
@@ -176,10 +176,7 @@ class HydrationCard extends StatelessWidget {
                 ? 'Faltam ${formatMl(remaining)} ml. Um gole de cada vez.'
                 : 'Meta de hoje batida! Constância é tudo.',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),
           Row(
@@ -236,7 +233,9 @@ class _QuickAddButton extends StatelessWidget {
               Icon(
                 Icons.add_rounded,
                 size: 20,
-                color: selected ? AppColors.limeAccent : AppColors.tealDark,
+                color: selected
+                    ? AppColors.onPrimaryAccent
+                    : AppColors.tealDark,
               ),
               const SizedBox(width: 6),
               Text(
@@ -249,97 +248,6 @@ class _QuickAddButton extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// Bottom sheet de "Outra quantidade"; devolve os ml digitados ou null
-Future<int?> showCustomAmountSheet(BuildContext context) {
-  return showModalBottomSheet<int>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: AppColors.background,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (_) => const _CustomAmountSheet(),
-  );
-}
-
-class _CustomAmountSheet extends StatefulWidget {
-  const _CustomAmountSheet();
-
-  @override
-  State<_CustomAmountSheet> createState() => _CustomAmountSheetState();
-}
-
-class _CustomAmountSheetState extends State<_CustomAmountSheet> {
-  final _formKey = GlobalKey<FormState>();
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    Navigator.pop(context, int.parse(_controller.text));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        24,
-        24,
-        24,
-        24 + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Outra quantidade',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.primaryDark,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _controller,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
-              style: const TextStyle(
-                fontSize: 16,
-                color: AppColors.primaryDark,
-              ),
-              decoration: const InputDecoration(
-                hintText: 'Quantidade em ml',
-                suffixText: 'ml',
-              ),
-              validator: (value) {
-                final amount = int.tryParse(value ?? '');
-                if (amount == null || amount <= 0) {
-                  return 'Informe uma quantidade válida';
-                }
-                if (amount > 2000) return 'Registre no máximo 2.000 ml por vez';
-                return null;
-              },
-              onFieldSubmitted: (_) => _submit(),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _submit, child: const Text('Adicionar')),
-          ],
         ),
       ),
     );

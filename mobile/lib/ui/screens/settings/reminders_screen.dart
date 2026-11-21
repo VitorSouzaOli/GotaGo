@@ -6,6 +6,8 @@ import '../../../core/utils/formatters.dart';
 import '../../../models/app_settings.dart';
 import '../../../providers/settings_provider.dart';
 import 'widgets/settings_widgets.dart';
+import '../../widgets/flow_page.dart';
+import 'notification_screens.dart';
 
 // Lembretes de hidratação. As escolhas ficam num rascunho e só são gravadas
 // em "Salvar lembretes". O app ainda não agenda as notificações em si.
@@ -93,10 +95,24 @@ class _RemindersScreenState extends State<RemindersScreen> {
       return;
     }
 
-    await context.read<SettingsProvider>().update(_draft);
+    final provider = context.read<SettingsProvider>();
+    final permission = provider.settings.notificationPermission;
+    await provider.update(_draft.copyWith(notificationPermission: permission));
     if (!mounted) return;
-    showSettingsMessage(context, 'Lembretes salvos.');
     widget.onBack();
+
+    // Lembretes ligados precisam da permissão de notificações
+    // (a tela de permissão já confirma o que acontece, sem o aviso por cima)
+    if (!_draft.remindersEnabled || permission == 'granted') {
+      showSettingsMessage(context, 'Lembretes salvos.');
+    } else {
+      pushPage(
+        context,
+        permission == 'denied'
+            ? const NotificationsBlockedScreen()
+            : const NotificationPromptScreen(),
+      );
+    }
   }
 
   @override
@@ -166,7 +182,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  const Text(
+                  Text(
                     'Dias da semana',
                     style: TextStyle(
                       fontSize: 15,
@@ -193,7 +209,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   const SizedBox(height: 10),
                   Text(
                     _weekdaysSummary,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
                     ),
@@ -224,7 +240,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Beba aos poucos. Lembretes não são uma meta extra nem um '
             'incentivo a ultrapassar sua necessidade.',
             style: TextStyle(

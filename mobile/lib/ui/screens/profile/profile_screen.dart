@@ -18,6 +18,10 @@ import '../achievements/achievements_screen.dart';
 import '../home/widgets/home_cards.dart';
 import '../welcome/welcome_screen.dart';
 import 'profile_page.dart';
+import '../../navigation/shell_controller.dart';
+import '../../widgets/flow_page.dart';
+import '../goal/goal_screens.dart';
+import 'edit_profile_screen.dart';
 
 // Aba "Perfil": resumo, meta diária, conquistas, configurações e sair
 class ProfileScreen extends StatelessWidget {
@@ -26,13 +30,18 @@ class ProfileScreen extends StatelessWidget {
 
   const ProfileScreen({super.key, required this.onOpenPage});
 
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
   Future<void> _logout(BuildContext context) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Sair da sua conta?',
+      body:
+          'Seus registros estão salvos na sua conta. Você precisará entrar '
+          'novamente para continuar acompanhando sua rotina.',
+      confirmLabel: 'Sair da conta',
+      cancelLabel: 'Continuar no aplicativo',
+    );
+    if (!confirmed || !context.mounted) return;
+
     await context.read<AuthProvider>().logout();
     if (!context.mounted) return;
 
@@ -40,6 +49,7 @@ class ProfileScreen extends StatelessWidget {
     context.read<AchievementProvider>().clear();
     context.read<LeagueProvider>().clear();
     context.read<SettingsProvider>().clear();
+    context.read<ShellController>().reset();
 
     Navigator.pushAndRemoveUntil(
       context,
@@ -74,13 +84,13 @@ class ProfileScreen extends StatelessWidget {
             user: user,
             achievementsLabel: achievementsLabel,
             leaguesCount: leaguesCount,
-            onEditProfile: () =>
-                _showMessage(context, 'Edição de perfil em breve.'),
+            onEditProfile: () => pushPage(context, const EditProfileScreen()),
           ),
           const SizedBox(height: 16),
           _GoalCard(
             goal: goal,
-            onAdjust: () => _showMessage(context, 'Ajuste de meta em breve.'),
+            onAdjust: () =>
+                pushPage(context, const EditGoalScreen(backLabel: 'Perfil')),
           ),
           const SizedBox(height: 24),
           SectionHeader(
@@ -95,7 +105,7 @@ class ProfileScreen extends StatelessWidget {
             onTap: () => onOpenPage(ProfilePage.achievements),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Um dia de cada vez. Medalhas celebram hábitos, não excesso de água.',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
@@ -148,16 +158,16 @@ class _SummaryCard extends StatelessWidget {
                   width: 64,
                   height: 64,
                   alignment: Alignment.center,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.primaryDark,
                     shape: BoxShape.circle,
                   ),
                   child: Text(
                     initialsOf(user.name),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.limeAccent,
+                      color: AppColors.onPrimaryAccent,
                     ),
                   ),
                 ),
@@ -168,7 +178,7 @@ class _SummaryCard extends StatelessWidget {
                     children: [
                       Text(
                         firstName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
                           color: AppColors.primaryDark,
@@ -177,7 +187,7 @@ class _SummaryCard extends StatelessWidget {
                       InkWell(
                         onTap: onEditProfile,
                         borderRadius: BorderRadius.circular(6),
-                        child: const Padding(
+                        child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 2),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -206,7 +216,7 @@ class _SummaryCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            const Divider(height: 1, color: AppColors.ringTrack),
+            Divider(height: 1, color: AppColors.ringTrack),
             const SizedBox(height: 14),
             Row(
               children: [
@@ -241,7 +251,7 @@ class _Stat extends StatelessWidget {
         children: [
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w800,
               color: AppColors.primaryDark,
@@ -250,10 +260,7 @@ class _Stat extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -277,7 +284,7 @@ class _GoalCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Sua meta diária',
                     style: TextStyle(
@@ -290,7 +297,7 @@ class _GoalCard extends StatelessWidget {
                 InkWell(
                   onTap: onAdjust,
                   borderRadius: BorderRadius.circular(6),
-                  child: const Padding(
+                  child: Padding(
                     padding: EdgeInsets.all(2),
                     child: Row(
                       children: [
@@ -322,7 +329,7 @@ class _GoalCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   formatMl(goal),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.8,
@@ -330,7 +337,7 @@ class _GoalCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(top: 8),
                   child: Text(
                     'ml por dia',
@@ -344,7 +351,7 @@ class _GoalCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            const Row(
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
@@ -387,7 +394,7 @@ class _AchievementsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (achievements.isEmpty) {
-      return const HomeCard(
+      return HomeCard(
         child: Text(
           'Registre seu primeiro gole para começar a colecionar medalhas.',
           style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
@@ -476,7 +483,7 @@ class _AchievementCard extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: unlocked
-                      ? AppColors.limeAccent
+                      ? AppColors.onPrimaryAccent
                       : AppColors.white.withValues(alpha: 0.6),
                   shape: BoxShape.circle,
                 ),
@@ -499,7 +506,7 @@ class _AchievementCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               if (unlocked)
-                const Text(
+                Text(
                   'Desbloqueada',
                   style: TextStyle(
                     fontSize: 11,
@@ -511,7 +518,7 @@ class _AchievementCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.lock_outline_rounded,
                       size: 12,
                       color: AppColors.textSecondary,
@@ -521,7 +528,7 @@ class _AchievementCard extends StatelessWidget {
                       child: Text(
                         progress ?? 'Bloqueada',
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           color: AppColors.textSecondary,
                         ),
@@ -575,7 +582,7 @@ class _SettingsCard extends StatelessWidget {
         children: [
           for (int i = 0; i < _items.length; i++) ...[
             if (i > 0)
-              const Divider(
+              Divider(
                 height: 1,
                 indent: 16,
                 endIndent: 16,
@@ -613,7 +620,7 @@ class _SettingsCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: AppColors.primaryDark,
@@ -622,7 +629,7 @@ class _SettingsCard extends StatelessWidget {
                   if (subtitle != null)
                     Text(
                       subtitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textSecondary,
                       ),
@@ -630,10 +637,7 @@ class _SettingsCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.primaryDark,
-            ),
+            Icon(Icons.chevron_right_rounded, color: AppColors.primaryDark),
           ],
         ),
       ),

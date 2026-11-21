@@ -23,7 +23,7 @@ class SubpageHeader extends StatelessWidget {
         InkWell(
           onTap: onBack,
           borderRadius: BorderRadius.circular(8),
-          child: const Padding(
+          child: Padding(
             padding: EdgeInsets.symmetric(vertical: 6, horizontal: 2),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -48,7 +48,7 @@ class SubpageHeader extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.w800,
             height: 1.15,
@@ -59,7 +59,7 @@ class SubpageHeader extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           subtitle,
-          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
       ],
     );
@@ -97,7 +97,7 @@ class SettingsCard extends StatelessWidget {
             if (title != null)
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
                   color: AppColors.primaryDark,
@@ -107,7 +107,7 @@ class SettingsCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 description,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   height: 1.45,
                   color: AppColors.textSecondary,
@@ -116,7 +116,7 @@ class SettingsCard extends StatelessWidget {
             ],
             if (title != null || description != null) const SizedBox(height: 4),
             for (int i = 0; i < children.length; i++) ...[
-              if (i > 0) const Divider(height: 1, color: AppColors.ringTrack),
+              if (i > 0) Divider(height: 1, color: AppColors.ringTrack),
               children[i],
             ],
             if (children.isEmpty) const SizedBox(height: 10),
@@ -134,7 +134,8 @@ class SettingsRow extends StatelessWidget {
   final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
-  final Color titleColor;
+  // Null usa a cor do texto principal (muda com o tema)
+  final Color? titleColor;
 
   const SettingsRow({
     super.key,
@@ -142,21 +143,18 @@ class SettingsRow extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.onTap,
-    this.titleColor = AppColors.primaryDark,
+    this.titleColor,
   });
 
   // Seta "›" das linhas que abrem outra coisa
-  static const chevron = Icon(
-    Icons.chevron_right_rounded,
-    size: 20,
-    color: AppColors.tealDark,
-  );
+  static Widget get chevron =>
+      Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.tealDark);
 
   // Valor atual em teal ("08:00", "Sistema")
   static Widget value(String text) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w800,
         color: AppColors.tealDark,
@@ -183,14 +181,14 @@ class SettingsRow extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: titleColor,
+                      color: titleColor ?? AppColors.primaryDark,
                     ),
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textSecondary,
                       ),
@@ -261,7 +259,7 @@ Future<T?> showOptionsSheet<T>({
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                   color: AppColors.primaryDark,
@@ -286,7 +284,7 @@ Future<T?> showOptionsSheet<T>({
                     ? Text(option.disabledHint!)
                     : null,
                 trailing: option.value == selected
-                    ? const Icon(Icons.check_rounded, color: AppColors.tealDark)
+                    ? Icon(Icons.check_rounded, color: AppColors.tealDark)
                     : null,
                 onTap: () => Navigator.pop(sheetContext, option.value),
               ),

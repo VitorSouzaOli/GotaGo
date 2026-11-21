@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../core/utils/formatters.dart';
-import '../../../models/app_settings.dart';
 import '../../../providers/settings_provider.dart';
+import '../../widgets/flow_page.dart';
+import '../support/support_screens.dart';
 import 'widgets/settings_widgets.dart';
 
 typedef _Faq = ({String question, String summary, String answer});
@@ -75,37 +75,9 @@ class _HelpScreenState extends State<HelpScreen> {
     ];
   }
 
-  Future<void> _contactSupport() async {
-    final message = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => const _SupportMessageSheet(),
-    );
-    if (message == null || !mounted) return;
-
-    await context.read<SettingsProvider>().addSupportRequest(message);
-    if (!mounted) return;
-    showSettingsMessage(context, 'Mensagem guardada em Minhas solicitações.');
-  }
-
-  void _showRequests(List<SupportRequest> requests) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => _RequestsSheet(requests: requests),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final requests = context.watch<SettingsProvider>().settings.supportRequests;
+    final tickets = context.watch<SettingsProvider>().settings.supportTickets;
     final visible = _visibleFaqs;
 
     return SafeArea(
@@ -125,8 +97,8 @@ class _HelpScreenState extends State<HelpScreen> {
               _query = value;
               _openIndex = null;
             }),
-            style: const TextStyle(fontSize: 15, color: AppColors.primaryDark),
-            decoration: const InputDecoration(
+            style: TextStyle(fontSize: 15, color: AppColors.primaryDark),
+            decoration: InputDecoration(
               hintText: 'Buscar por assunto',
               prefixIcon: Icon(
                 Icons.search_rounded,
@@ -143,7 +115,7 @@ class _HelpScreenState extends State<HelpScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   child: Text(
                     'Nenhuma dúvida encontrada para "${_query.trim()}".',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
@@ -168,7 +140,7 @@ class _HelpScreenState extends State<HelpScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 child: FilledButton(
-                  onPressed: _contactSupport,
+                  onPressed: () => pushPage(context, const SupportFormScreen()),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(double.infinity, 48),
                   ),
@@ -177,12 +149,12 @@ class _HelpScreenState extends State<HelpScreen> {
               ),
               SettingsRow(
                 title: 'Minhas solicitações',
-                subtitle: requests.isEmpty
+                subtitle: tickets.isEmpty
                     ? 'Acompanhe suas conversas.'
-                    : '${requests.length} '
-                          '${requests.length == 1 ? 'mensagem' : 'mensagens'}',
+                    : '${tickets.length} '
+                          '${tickets.length == 1 ? 'solicitação' : 'solicitações'}',
                 trailing: SettingsRow.chevron,
-                onTap: () => _showRequests(requests),
+                onTap: () => pushPage(context, const SupportTicketsScreen()),
               ),
             ],
           ),
@@ -193,7 +165,7 @@ class _HelpScreenState extends State<HelpScreen> {
               color: AppColors.lockedSurface,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -245,7 +217,7 @@ class _FaqItem extends StatelessWidget {
                 Expanded(
                   child: Text(
                     faq.question,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: AppColors.primaryDark,
@@ -272,169 +244,6 @@ class _FaqItem extends StatelessWidget {
                 ),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SupportMessageSheet extends StatefulWidget {
-  const _SupportMessageSheet();
-
-  @override
-  State<_SupportMessageSheet> createState() => _SupportMessageSheetState();
-}
-
-class _SupportMessageSheetState extends State<_SupportMessageSheet> {
-  final _formKey = GlobalKey<FormState>();
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    Navigator.pop(context, _controller.text.trim());
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        24,
-        24,
-        24,
-        24 + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Falar com o suporte',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.primaryDark,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Conte o que aconteceu. O envio ao suporte ainda não está '
-              'conectado: sua mensagem fica guardada neste aparelho.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _controller,
-              autofocus: true,
-              minLines: 4,
-              maxLines: 6,
-              style: const TextStyle(
-                fontSize: 15,
-                color: AppColors.primaryDark,
-              ),
-              decoration: const InputDecoration(
-                hintText: 'Descreva sua dúvida ou problema',
-              ),
-              validator: (value) => (value == null || value.trim().length < 10)
-                  ? 'Escreva pelo menos 10 caracteres'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _submit,
-              child: const Text('Guardar mensagem'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RequestsSheet extends StatelessWidget {
-  final List<SupportRequest> requests;
-
-  const _RequestsSheet({required this.requests});
-
-  @override
-  Widget build(BuildContext context) {
-    final sorted = [...requests]
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Minhas solicitações',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.primaryDark,
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (sorted.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Text(
-                  'Você ainda não abriu nenhuma solicitação.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              )
-            else
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: sorted.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 1, color: AppColors.ringTrack),
-                  itemBuilder: (context, index) {
-                    final request = sorted[index];
-                    final date = request.createdAt;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${date.day.toString().padLeft(2, '0')}/'
-                            '${date.month.toString().padLeft(2, '0')} · '
-                            '${formatTime(date)} · Guardada no aparelho',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.tealDark,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            request.message,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.primaryDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
           ],
         ),
       ),

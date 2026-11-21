@@ -6,6 +6,9 @@ import '../../core/theme/app_colors.dart';
 
 // Anel de progresso da Home: trilho claro + arco teal a partir do topo
 class HydrationRingPainter extends CustomPainter {
+  // Tema no momento do desenho: troca de tema força redesenhar
+  final bool _dark = AppColors.isDark;
+
   // 0 a 1 (fração da meta diária)
   final double progress;
   final double strokeWidth;
@@ -43,7 +46,8 @@ class HydrationRingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant HydrationRingPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
+    return oldDelegate._dark != _dark ||
+        oldDelegate.progress != progress ||
         oldDelegate.strokeWidth != strokeWidth;
   }
 }

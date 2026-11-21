@@ -60,7 +60,7 @@ class TrophyPainter extends CustomPainter {
         ..shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [AppColors.dropDark, AppColors.primaryDarkLight],
+          colors: [AppColors.dropDark, AppColors.trophyBaseLight],
         ).createShader(Rect.fromLTWH(0, h * 0.62, w, h * 0.16)),
     );
 
@@ -91,7 +91,7 @@ class TrophyPainter extends CustomPainter {
         ..shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [AppColors.primaryDarkLight, AppColors.primaryDark],
+          colors: [AppColors.trophyBaseLight, AppColors.trophyBase],
         ).createShader(baseRect),
     );
 

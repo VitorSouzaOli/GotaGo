@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/settings_provider.dart';
+import '../../widgets/flow_page.dart';
+import 'appearance_screen.dart';
 import 'widgets/settings_widgets.dart';
 
 // Preferências e notificações (salvas no aparelho a cada alteração)
@@ -21,24 +23,6 @@ class PreferencesScreen extends StatelessWidget {
     'light': 'Claro',
     'dark': 'Escuro',
   };
-
-  Future<void> _pickAppearance(BuildContext context) async {
-    final provider = context.read<SettingsProvider>();
-    final picked = await showOptionsSheet<String>(
-      context: context,
-      title: 'Aparência',
-      selected: provider.settings.appearance,
-      options: const [
-        (value: 'system', label: 'Sistema', disabledHint: null),
-        (value: 'light', label: 'Claro', disabledHint: null),
-        // O app ainda só tem o tema claro
-        (value: 'dark', label: 'Escuro', disabledHint: 'Em breve'),
-      ],
-    );
-    if (picked != null) {
-      await provider.update(provider.settings.copyWith(appearance: picked));
-    }
-  }
 
   Future<void> _pickUnit(BuildContext context) async {
     final provider = context.read<SettingsProvider>();
@@ -81,7 +65,7 @@ class PreferencesScreen extends StatelessWidget {
                 trailing: SettingsRow.value(
                   _appearanceLabels[settings.appearance] ?? 'Sistema',
                 ),
-                onTap: () => _pickAppearance(context),
+                onTap: () => pushPage(context, const AppearanceScreen()),
               ),
               SettingsRow(
                 title: 'Unidade de volume',
@@ -135,7 +119,7 @@ class PreferencesScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'As permissões do aparelho também controlam a entrega de '
             'notificações.',
             style: TextStyle(

@@ -52,10 +52,10 @@ class StreakCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.local_fire_department_outlined,
             size: 30,
-            color: AppColors.primaryDark,
+            color: AppColors.onLime,
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -64,10 +64,10 @@ class StreakCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.primaryDark,
+                    color: AppColors.onLime,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -75,7 +75,7 @@ class StreakCard extends StatelessWidget {
                   subtitle,
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.primaryDark.withValues(alpha: 0.8),
+                    color: AppColors.onLime.withValues(alpha: 0.8),
                   ),
                 ),
               ],
@@ -110,7 +110,7 @@ class SectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
               color: AppColors.primaryDark,
@@ -120,10 +120,7 @@ class SectionHeader extends StatelessWidget {
         if (actionLabel != null && onAction == null)
           Text(
             actionLabel,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
         if (actionLabel != null && onAction != null)
           InkWell(
@@ -135,13 +132,13 @@ class SectionHeader extends StatelessWidget {
                 children: [
                   Text(
                     actionLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: AppColors.tealDark,
                     ),
                   ),
-                  const Icon(
+                  Icon(
                     Icons.chevron_right_rounded,
                     size: 20,
                     color: AppColors.tealDark,
@@ -192,7 +189,7 @@ class LeagueSummaryCard extends StatelessWidget {
                   color: AppColors.tealSoft,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.group_outlined,
                   size: 24,
                   color: AppColors.tealDark,
@@ -205,7 +202,7 @@ class LeagueSummaryCard extends StatelessWidget {
                   children: [
                     Text(
                       league.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: AppColors.primaryDark,
@@ -213,7 +210,7 @@ class LeagueSummaryCard extends StatelessWidget {
                     ),
                     Text(
                       '$people · ranking por dias seguidos',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
                       ),
@@ -291,7 +288,7 @@ class LeagueSummaryCard extends StatelessWidget {
       ),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
     );
   }
 }
@@ -315,14 +312,14 @@ class LeagueEmptyCard extends StatelessWidget {
               color: AppColors.tealSoft,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.group_outlined,
               size: 24,
               color: AppColors.tealDark,
             ),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -345,10 +342,7 @@ class LeagueEmptyCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(
-            Icons.chevron_right_rounded,
-            color: AppColors.textSecondary,
-          ),
+          Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
         ],
       ),
     );
@@ -381,7 +375,7 @@ class ShortcutCard extends StatelessWidget {
             children: [
               Icon(icon, size: 24, color: AppColors.tealDark),
               const Spacer(),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
                 size: 20,
                 color: AppColors.textSecondary,
@@ -391,7 +385,7 @@ class ShortcutCard extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w800,
               color: AppColors.primaryDark,
@@ -402,10 +396,7 @@ class ShortcutCard extends StatelessWidget {
             subtitle,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
         ],
       ),

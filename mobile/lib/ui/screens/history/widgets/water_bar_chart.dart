@@ -103,7 +103,7 @@ class WaterBarChart extends StatelessWidget {
               fit: BoxFit.scaleDown,
               child: Text(
                 formatMl(value),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   color: AppColors.primaryDark,

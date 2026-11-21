@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -7,71 +6,18 @@ import '../../../models/league_model.dart';
 import '../../../models/user_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/league_provider.dart';
+import '../../widgets/flow_page.dart';
 import '../../widgets/footer_note.dart';
 import '../../widgets/initials_avatar.dart';
 import '../../widgets/tab_header.dart';
 import '../home/widgets/home_cards.dart';
-import 'widgets/league_form_sheet.dart';
+import 'league_flow_screens.dart';
 
 // Aba "Ligas": criar/entrar, ligas do utilizador e ranking da liga selecionada
 class LeaguesScreen extends StatelessWidget {
   final VoidCallback onAvatarTap;
 
   const LeaguesScreen({super.key, required this.onAvatarTap});
-
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _createLeague(BuildContext context, UserModel user) async {
-    final result = await showLeagueFormSheet(context, LeagueFormMode.create);
-    if (result == null || !context.mounted) return;
-
-    final leagueProvider = context.read<LeagueProvider>();
-    final success = await leagueProvider.create(
-      userId: user.id,
-      name: result.name,
-      description: result.description,
-    );
-    if (!context.mounted) return;
-
-    _showMessage(
-      context,
-      success
-          ? 'Liga "${result.name}" criada! Convide seus amigos.'
-          : leagueProvider.errorMessage ?? 'Não foi possível criar a liga.',
-    );
-  }
-
-  Future<void> _joinLeague(BuildContext context, UserModel user) async {
-    final result = await showLeagueFormSheet(context, LeagueFormMode.join);
-    if (result == null || !context.mounted) return;
-
-    final leagueProvider = context.read<LeagueProvider>();
-    final success = await leagueProvider.join(
-      userId: user.id,
-      code: result.code,
-    );
-    if (!context.mounted) return;
-
-    _showMessage(
-      context,
-      success
-          ? 'Você entrou na liga "${leagueProvider.selected?.name}"!'
-          : leagueProvider.errorMessage ?? 'Não foi possível entrar na liga.',
-    );
-  }
-
-  Future<void> _invite(BuildContext context, LeagueModel league) async {
-    await Clipboard.setData(ClipboardData(text: league.code));
-    if (!context.mounted) return;
-    _showMessage(
-      context,
-      'Código ${league.code} copiado. Envie para seus amigos!',
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +28,35 @@ class LeaguesScreen extends StatelessWidget {
     final leagueProvider = context.watch<LeagueProvider>();
     final leagues = leagueProvider.leagues;
     final selected = leagueProvider.selected;
+
+    // Sem ligas: "Melhor com companhia"
+    if (!leagueProvider.isLoading && leagues.isEmpty) {
+      return FlowPage(
+        embedded: true,
+        showBack: false,
+        title: 'Melhor com companhia',
+        subtitle: 'Ligas · Você ainda não participa de nenhuma',
+        illustration: const DropIllustration(),
+        content: const [
+          FlowCard(
+            title: 'Encontre sua equipe',
+            body: 'Crie uma liga ou use o código de convite de um amigo.',
+          ),
+          NoteCard(
+            'A disputa é por constância. Não é preciso beber mais para subir '
+            'no ranking.',
+          ),
+        ],
+        primary: FlowAction(
+          'Criar uma liga',
+          () => pushPage(context, const CreateLeagueScreen()),
+        ),
+        secondary: FlowAction(
+          'Entrar com código',
+          () => pushPage(context, const JoinLeagueScreen()),
+        ),
+      );
+    }
 
     return SafeArea(
       bottom: false,
@@ -106,8 +81,8 @@ class LeaguesScreen extends StatelessWidget {
             const SizedBox(height: 18),
             _ActionButtons(
               isBusy: leagueProvider.isSubmitting,
-              onCreate: () => _createLeague(context, user),
-              onJoin: () => _joinLeague(context, user),
+              onCreate: () => pushPage(context, const CreateLeagueScreen()),
+              onJoin: () => pushPage(context, const JoinLeagueScreen()),
             ),
             const SizedBox(height: 24),
             SectionHeader(
@@ -118,7 +93,7 @@ class LeaguesScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             if (leagueProvider.isLoading && leagues.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.all(32),
                 child: Center(
                   child: CircularProgressIndicator(color: AppColors.tealDark),
@@ -136,7 +111,8 @@ class LeaguesScreen extends StatelessWidget {
               _RankingCard(
                 league: selected,
                 user: user,
-                onInvite: () => _invite(context, selected),
+                onInvite: () =>
+                    pushPage(context, InviteScreen(leagueId: selected.id)),
               ),
             ],
             const SizedBox(height: 20),
@@ -171,10 +147,10 @@ class _ActionButtons extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: isBusy ? null : onCreate,
             style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
-            icon: const Icon(
+            icon: Icon(
               Icons.add_rounded,
               size: 20,
-              color: AppColors.limeAccent,
+              color: AppColors.onPrimaryAccent,
             ),
             label: const Text('Criar liga'),
           ),
@@ -288,10 +264,10 @@ class _LeagueChip extends StatelessWidget {
                     ),
                   ),
                   if (selected)
-                    const Icon(
+                    Icon(
                       Icons.check_circle_outline_rounded,
                       size: 16,
-                      color: AppColors.limeAccent,
+                      color: AppColors.onPrimaryAccent,
                     ),
                 ],
               ),
@@ -301,7 +277,7 @@ class _LeagueChip extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   color: selected
-                      ? AppColors.limeAccent
+                      ? AppColors.onPrimaryAccent
                       : AppColors.textSecondary,
                 ),
               ),
@@ -355,7 +331,7 @@ class _RankingCard extends StatelessWidget {
                     color: AppColors.tealSoft,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.group_outlined,
                     size: 24,
                     color: AppColors.tealDark,
@@ -368,7 +344,7 @@ class _RankingCard extends StatelessWidget {
                     children: [
                       Text(
                         league.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                           color: AppColors.primaryDark,
@@ -378,7 +354,7 @@ class _RankingCard extends StatelessWidget {
                         position != null
                             ? '$people · você está em $positionº'
                             : people,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
                         ),
@@ -389,9 +365,9 @@ class _RankingCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            const Divider(height: 1, color: AppColors.ringTrack),
+            Divider(height: 1, color: AppColors.ringTrack),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'Ranking de constância',
               style: TextStyle(
                 fontSize: 14,
@@ -399,7 +375,7 @@ class _RankingCard extends StatelessWidget {
                 color: AppColors.primaryDark,
               ),
             ),
-            const Text(
+            Text(
               'Dias consecutivos de meta cumprida',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
@@ -417,7 +393,7 @@ class _RankingCard extends StatelessWidget {
               child: InkWell(
                 onTap: onInvite,
                 borderRadius: BorderRadius.circular(14),
-                child: const SizedBox(
+                child: SizedBox(
                   height: 48,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -445,10 +421,7 @@ class _RankingCard extends StatelessWidget {
             Text(
               'Compartilhe o código de convite único da liga: ${league.code}',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -457,33 +430,24 @@ class _RankingCard extends StatelessWidget {
   }
 }
 
-// Top 3 do ranking (mais a posição do utilizador, se estiver abaixo),
-// com a opção de expandir para todos os membros
-class _RankingList extends StatefulWidget {
+// Top 3 do ranking; "Ver ranking completo" abre a classificação da liga
+class _RankingList extends StatelessWidget {
+  static const _collapsedCount = 3;
+
   final LeagueModel league;
   final String userId;
 
   const _RankingList({super.key, required this.league, required this.userId});
 
   @override
-  State<_RankingList> createState() => _RankingListState();
-}
-
-class _RankingListState extends State<_RankingList> {
-  static const _collapsedCount = 3;
-
-  bool _expanded = false;
-
-  @override
   Widget build(BuildContext context) {
-    final ranking = widget.league.ranking;
-    final myPosition = widget.league.positionOf(widget.userId);
-    final canExpand = ranking.length > _collapsedCount;
+    final ranking = league.ranking;
+    final myPosition = league.positionOf(userId);
 
-    // Índices (0-based) das linhas visíveis
+    // Top 3 e, se estiver abaixo, a posição do utilizador
     final visible = <int>[
       for (int i = 0; i < ranking.length; i++)
-        if (_expanded || i < _collapsedCount || i + 1 == myPosition) i,
+        if (i < _collapsedCount || i + 1 == myPosition) i,
     ];
 
     return Column(
@@ -493,17 +457,14 @@ class _RankingListState extends State<_RankingList> {
           _RankingRow(
             position: i + 1,
             member: ranking[i],
-            isMe: ranking[i].id == widget.userId,
+            isMe: ranking[i].id == userId,
           ),
-        if (canExpand)
+        if (ranking.length > _collapsedCount)
           Center(
             child: TextButton(
-              onPressed: () => setState(() => _expanded = !_expanded),
-              child: Text(
-                _expanded
-                    ? 'Mostrar menos'
-                    : 'Ver ranking completo (${ranking.length})',
-              ),
+              onPressed: () =>
+                  pushPage(context, LeagueRankingScreen(leagueId: league.id)),
+              child: Text('Ver ranking completo (${ranking.length})'),
             ),
           ),
       ],
@@ -555,7 +516,7 @@ class _RankingRow extends StatelessWidget {
               children: [
                 Text(
                   isMe ? 'Você' : firstName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: AppColors.primaryDark,
@@ -564,7 +525,7 @@ class _RankingRow extends StatelessWidget {
                 if (isMe)
                   Text(
                     '$firstName · sua posição',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
@@ -574,7 +535,7 @@ class _RankingRow extends StatelessWidget {
           ),
           Text(
             '$days ${days == 1 ? 'dia' : 'dias'}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w800,
               color: AppColors.primaryDark,
@@ -591,7 +552,7 @@ class _EmptyLeagues extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const HomeCard(
+    return HomeCard(
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         child: Column(

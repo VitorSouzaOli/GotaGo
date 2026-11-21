@@ -7,9 +7,13 @@ import '../../../models/water_log_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/water_provider.dart';
 import '../../painters/drop_painter.dart';
+import '../../navigation/shell_controller.dart';
+import '../../widgets/flow_page.dart';
 import '../../widgets/footer_note.dart';
 import '../../widgets/tab_header.dart';
+import '../common/status_screens.dart';
 import '../home/widgets/home_cards.dart';
+import '../water/water_screens.dart';
 import 'widgets/water_bar_chart.dart';
 
 // Aba "Histórico": gráfico da semana/mês, constância e registos de hoje
@@ -33,6 +37,41 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final days = _showMonth ? WaterProvider.historyDays : 7;
     final totals = water.dailyTotals(days);
     final todayDone = water.totalToday >= goal;
+
+    if (water.isLoading) return const LoadingView();
+
+    // Ninguém registrou nada ainda: "Seu primeiro gole começa aqui"
+    if (!water.hasAnyLogs) {
+      return FlowPage(
+        embedded: true,
+        showBack: false,
+        title: 'Seu primeiro gole começa aqui',
+        subtitle: 'Histórico · Nenhum registro ainda',
+        illustration: const DropIllustration(),
+        content: const [
+          FlowCard(
+            title: 'Ainda não há registros',
+            body:
+                'Quando você registrar água, seu consumo e sua evolução '
+                'aparecerão aqui.',
+          ),
+          NoteCard(
+            'Comece devagar. Um gole de cada vez já faz parte da sua rotina.',
+          ),
+        ],
+        primary: FlowAction(
+          'Registrar meu primeiro copo',
+          () => pushPage(
+            context,
+            const RegisterWaterScreen(backLabel: 'Histórico'),
+          ),
+        ),
+        secondary: FlowAction(
+          'Voltar ao início',
+          () => context.read<ShellController>().goTo(ShellTab.home),
+        ),
+      );
+    }
 
     return SafeArea(
       bottom: false,
@@ -63,6 +102,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             actionLabel:
                 '${water.todayLogs.length} '
                 '${water.todayLogs.length == 1 ? 'registro' : 'registros'}',
+            onAction: () => pushPage(context, const TodayLogsScreen()),
           ),
           const SizedBox(height: 12),
           _TodayCard(
@@ -159,7 +199,7 @@ class _ChartCard extends StatelessWidget {
                     children: [
                       Text(
                         'Últimos $days dias',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                           color: AppColors.primaryDark,
@@ -168,7 +208,7 @@ class _ChartCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         'De ${days - 1} dias atrás até hoje',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
                         ),
@@ -190,7 +230,7 @@ class _ChartCard extends StatelessWidget {
                           ),
                         );
                     },
-                    child: const SizedBox(
+                    child: SizedBox(
                       width: 36,
                       height: 36,
                       child: Icon(
@@ -210,7 +250,7 @@ class _ChartCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   'Meta diária · ${formatMl(goal)} ml',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textSecondary,
                   ),
@@ -222,7 +262,7 @@ class _ChartCard extends StatelessWidget {
             const SizedBox(height: 16),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.check_circle_outline_rounded,
                   size: 18,
                   color: AppColors.tealDark,
@@ -234,7 +274,7 @@ class _ChartCard extends StatelessWidget {
                       children: [
                         TextSpan(
                           text: '$completed de ${days - 1}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w800,
                             color: AppColors.primaryDark,
                           ),
@@ -244,7 +284,7 @@ class _ChartCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
@@ -294,7 +334,7 @@ class _TodayCard extends StatelessWidget {
                         children: [
                           Text(
                             formatMl(total),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.8,
@@ -302,7 +342,7 @@ class _TodayCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Text(
+                          Text(
                             'ml',
                             style: TextStyle(
                               fontSize: 14,
@@ -314,7 +354,7 @@ class _TodayCard extends StatelessWidget {
                       ),
                       Text(
                         '$percent% da meta de ${formatMl(goal)} ml',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
                         ),
@@ -344,7 +384,7 @@ class _TodayCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             if (logs.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
                 child: Text(
                   'Nenhum registro hoje. Que tal um gole agora?',
@@ -355,7 +395,7 @@ class _TodayCard extends StatelessWidget {
                 ),
               ),
             for (int i = 0; i < logs.length; i++) ...[
-              const Divider(height: 1, color: AppColors.ringTrack),
+              Divider(height: 1, color: AppColors.ringTrack),
               _LogRow(log: logs[i], isLatest: i == 0),
             ],
           ],
@@ -373,56 +413,60 @@ class _LogRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: AppColors.tealSoft,
-              shape: BoxShape.circle,
+    return InkWell(
+      onTap: () => pushPage(context, EditLogScreen(log: log)),
+      onLongPress: () => deleteLogWithConfirmation(context, log),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.tealSoft,
+                shape: BoxShape.circle,
+              ),
+              child: const CustomPaint(
+                size: Size(13, 17),
+                painter: DropPainter(),
+              ),
             ),
-            child: const CustomPaint(
-              size: Size(13, 17),
-              painter: DropPainter(),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  formatTime(log.createdAt),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primaryDark,
-                  ),
-                ),
-                if (isLatest)
-                  const Text(
-                    'Último registro',
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    formatTime(log.createdAt),
                     style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryDark,
                     ),
                   ),
-              ],
+                  if (isLatest)
+                    Text(
+                      'Último registro',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          Text(
-            '${formatMl(log.amount)} ml',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: AppColors.primaryDark,
+            Text(
+              '${formatMl(log.amount)} ml',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: AppColors.primaryDark,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

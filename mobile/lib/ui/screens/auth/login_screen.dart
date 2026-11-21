@@ -6,8 +6,12 @@ import '../../widgets/app_text_field.dart';
 import '../../widgets/arrow_label.dart';
 import '../../widgets/auth_layout.dart';
 import '../../widgets/footer_note.dart';
+import '../../widgets/flow_page.dart';
 import '../../widgets/social_login.dart';
+import '../common/status_screens.dart';
+import '../../navigation/shell_controller.dart';
 import '../home/home_shell.dart';
+import 'password_recovery_screens.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,6 +24,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
+  // Última tentativa recusada por e-mail/senha errados ("Vamos tentar de novo?")
+  bool _invalidCredentials = false;
 
   @override
   void dispose() {
@@ -41,15 +47,27 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
+      context.read<ShellController>().reset();
       // Remove Boas-vindas e Login da pilha: o "voltar" não retorna a elas
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const HomeShell()),
         (_) => false,
       );
+    } else if (authProvider.failure == AuthFailure.invalidCredentials) {
+      setState(() => _invalidCredentials = true);
+    } else if (authProvider.failure == AuthFailure.offline) {
+      showOffline(context, _submit);
     } else {
       _showMessage(authProvider.errorMessage ?? 'Não foi possível entrar.');
     }
+  }
+
+  void _openRecovery() {
+    pushPage(
+      context,
+      ForgotPasswordScreen(initialEmail: _loginController.text.trim()),
+    );
   }
 
   void _showMessage(String message) {
@@ -63,8 +81,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final isLoading = context.watch<AuthProvider>().isLoading;
 
     return AuthLayout(
-      title: 'Bom te ver de novo!',
-      subtitle: 'Entre na sua conta e continue cuidando\ndo seu hábito, no seu ritmo.',
+      title: _invalidCredentials
+          ? 'Vamos tentar de novo?'
+          : 'Bom te ver de novo!',
+      subtitle: _invalidCredentials ? 'Login · Acesso não concluído' : 'Entre na sua conta e continue cuidando\ndo seu hábito, no seu ritmo.',
       footer: const FooterNote('Constância, não excesso. Respeite seu corpo.'),
       children: [
         Form(
@@ -93,6 +113,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   isPassword: true,
                   textInputAction: TextInputAction.done,
                   autofillHints: const [AutofillHints.password],
+                  errorText: _invalidCredentials
+                      ? 'E-mail ou senha incorretos. Confira os dados.'
+                      : null,
+                  onChanged: (_) {
+                    if (_invalidCredentials) {
+                      setState(() => _invalidCredentials = false);
+                    }
+                  },
                   validator: (value) => (value == null || value.isEmpty)
                       ? 'Informe sua senha'
                       : null,
@@ -102,13 +130,27 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: () => _showMessage('Recuperação de senha em breve.'),
-            child: const Text('Esqueci minha senha'),
+        if (_invalidCredentials) ...[
+          const SizedBox(height: 18),
+          const ErrorCard(
+            title: 'Não foi possível entrar',
+            body: 'Você pode tentar novamente ou recuperar sua senha.',
           ),
-        ),
+          const SizedBox(height: 16),
+          FlowCard(
+            title: 'Esqueceu sua senha?',
+            body: 'Receber instruções de recuperação',
+            onTap: _openRecovery,
+          ),
+          const SizedBox(height: 12),
+        ] else
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _openRecovery,
+              child: const Text('Esqueci minha senha'),
+            ),
+          ),
         const SizedBox(height: 12),
         FilledButton(
           onPressed: isLoading ? null : _submit,

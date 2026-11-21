@@ -32,7 +32,9 @@ class InitialsAvatar extends StatelessWidget {
         style: TextStyle(
           fontSize: size * 0.34,
           fontWeight: FontWeight.w800,
-          color: highlighted ? AppColors.limeAccent : AppColors.textSecondary,
+          color: highlighted
+              ? AppColors.onPrimaryAccent
+              : AppColors.textSecondary,
         ),
       ),
     );

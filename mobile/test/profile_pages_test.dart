@@ -13,6 +13,7 @@ import 'package:gotago/providers/league_provider.dart';
 import 'package:gotago/providers/settings_provider.dart';
 import 'package:gotago/providers/water_provider.dart';
 import 'package:gotago/services/api_service.dart';
+import 'package:gotago/ui/navigation/shell_controller.dart';
 import 'package:gotago/ui/screens/home/home_shell.dart';
 
 // Storage em memória no lugar do flutter_secure_storage (indisponível em testes)
@@ -79,8 +80,9 @@ void main() {
           ChangeNotifierProvider(create: (_) => AchievementProvider(api)),
           ChangeNotifierProvider(create: (_) => LeagueProvider(api)),
           ChangeNotifierProvider.value(value: settings),
+          ChangeNotifierProvider(create: (_) => ShellController()),
         ],
-        child: MaterialApp(theme: AppTheme.lightTheme, home: const HomeShell()),
+        child: MaterialApp(theme: AppTheme.current, home: const HomeShell()),
       ),
     );
     // Espera as respostas do modo demo (~0,4 s cada)
@@ -142,6 +144,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(settings.settings.weekdays.last, isFalse);
+
+    // Lembretes ligados pedem a permissão de notificações uma vez
+    expect(find.text('Um lembrete amigo'), findsOneWidget);
+    await tester.tap(find.text('Agora não'));
+    await tester.pumpAndSettle();
+    expect(settings.settings.notificationPermission, 'denied');
     expect(find.text('Do seu jeito'), findsOneWidget);
   });
 

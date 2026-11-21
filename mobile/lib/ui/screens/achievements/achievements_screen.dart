@@ -10,6 +10,8 @@ import '../../../providers/auth_provider.dart';
 import '../../painters/drop_painter.dart';
 import '../../painters/medal_painter.dart';
 import '../../widgets/footer_note.dart';
+import '../../widgets/flow_page.dart';
+import 'achievement_detail_screen.dart';
 import '../../widgets/gotago_logo.dart';
 
 // Dias seguidos exigidos pela conquista ("STREAK_7_DAYS" → 7); 0 nas demais
@@ -73,7 +75,7 @@ class AchievementsScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Conquistas',
             style: TextStyle(
               fontSize: 28,
@@ -83,7 +85,7 @@ class AchievementsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Pequenos hábitos. Grandes motivos pra sorrir.',
             style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
           ),
@@ -94,10 +96,19 @@ class AchievementsScreen extends StatelessWidget {
             const _EmptyAchievements()
           else
             for (final achievement in sorted) ...[
-              _AchievementTile(
-                achievement: achievement,
-                streak: user.currentStreak,
-                showProgress: achievement == next,
+              GestureDetector(
+                onTap: () => pushPage(
+                  context,
+                  AchievementDetailScreen(
+                    achievement: achievement,
+                    isNext: achievement == next,
+                  ),
+                ),
+                child: _AchievementTile(
+                  achievement: achievement,
+                  streak: user.currentStreak,
+                  showProgress: achievement == next,
+                ),
               ),
               const SizedBox(height: 14),
             ],
@@ -129,7 +140,7 @@ class _ProgressHeader extends StatelessWidget {
           children: [
             Text(
               '$unlocked de $total',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 color: AppColors.primaryDark,
@@ -138,13 +149,10 @@ class _ProgressHeader extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               unlocked == 1 ? 'desbloqueada' : 'desbloqueadas',
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
             const Spacer(),
-            const Icon(
+            Icon(
               Icons.workspace_premium_outlined,
               size: 22,
               color: AppColors.tealDark,
@@ -253,7 +261,7 @@ class _AchievementTile extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       _description,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         height: 1.4,
                         color: AppColors.textSecondary,
@@ -274,19 +282,15 @@ class _AchievementTile extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.check_rounded,
-                    size: 16,
-                    color: AppColors.primaryDark,
-                  ),
+                  Icon(Icons.check_rounded, size: 16, color: AppColors.onLime),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       _celebration,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.primaryDark,
+                        color: AppColors.onLime,
                       ),
                     ),
                   ),
@@ -396,7 +400,7 @@ class _StatusChip extends StatelessWidget {
           Icon(
             unlocked ? Icons.check_rounded : Icons.lock_outline_rounded,
             size: 12,
-            color: unlocked ? AppColors.tealDark : AppColors.textSecondary,
+            color: unlocked ? AppColors.onLime : AppColors.textSecondary,
           ),
           const SizedBox(width: 4),
           Text(
@@ -404,7 +408,7 @@ class _StatusChip extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: unlocked ? AppColors.tealDark : AppColors.textSecondary,
+              color: unlocked ? AppColors.onLime : AppColors.textSecondary,
             ),
           ),
         ],
@@ -431,7 +435,7 @@ class _StreakProgress extends StatelessWidget {
           children: [
             Text(
               '$done de $total dias',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
                 color: AppColors.tealDark,
@@ -440,7 +444,7 @@ class _StreakProgress extends StatelessWidget {
             const Spacer(),
             Text(
               remaining == 1 ? 'Falta só 1 dia!' : 'Faltam $remaining dias',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: AppColors.primaryDark,
@@ -470,7 +474,7 @@ class _StreakProgress extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Hoje ainda está em andamento. No seu ritmo.',
           style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
@@ -513,7 +517,7 @@ class _EmptyAchievements extends StatelessWidget {
         color: AppColors.white,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: const Text(
+      child: Text(
         'Registre seu primeiro gole para começar a colecionar medalhas.',
         textAlign: TextAlign.center,
         style: TextStyle(fontSize: 14, color: AppColors.textSecondary),

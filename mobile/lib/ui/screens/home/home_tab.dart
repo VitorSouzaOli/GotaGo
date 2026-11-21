@@ -8,8 +8,12 @@ import '../../../providers/achievement_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/league_provider.dart';
 import '../../../providers/water_provider.dart';
+import '../../widgets/flow_page.dart';
 import '../../widgets/footer_note.dart';
 import '../../widgets/gotago_logo.dart';
+import '../common/status_screens.dart';
+import '../goal/goal_screens.dart';
+import '../water/water_screens.dart';
 import 'widgets/home_cards.dart';
 import 'widgets/hydration_card.dart';
 
@@ -24,65 +28,6 @@ class HomeTab extends StatelessWidget {
     required this.onNavigate,
     required this.onOpenAchievements,
   });
-
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _addWater(BuildContext context, int amount) async {
-    final authProvider = context.read<AuthProvider>();
-    final waterProvider = context.read<WaterProvider>();
-    final achievementProvider = context.read<AchievementProvider>();
-
-    final user = authProvider.user;
-    if (user == null) return;
-
-    final result = await waterProvider.addWater(user.id, amount);
-    if (!context.mounted) return;
-
-    if (result == null) {
-      final error = waterProvider.errorMessage;
-      if (error != null) _showMessage(context, error);
-      return;
-    }
-
-    if (result.streakUpdated) await authProvider.incrementStreak();
-
-    if (result.newAchievements.isNotEmpty) {
-      achievementProvider.load(user.id);
-      if (context.mounted) {
-        _showMessage(
-          context,
-          'Conquista desbloqueada: ${result.newAchievements.join(', ')}',
-        );
-      }
-    }
-
-    // Alerta de consumo excessivo devolvido pelo backend (> 4000 ml no dia)
-    final warning = result.warning;
-    if (warning != null && context.mounted) {
-      showDialog(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Atenção'),
-          content: Text(warning),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Entendi'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
-  Future<void> _addCustomAmount(BuildContext context) async {
-    final amount = await showCustomAmountSheet(context);
-    if (amount != null && context.mounted) await _addWater(context, amount);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +52,10 @@ class HomeTab extends StatelessWidget {
         : '${achievements.unlockedCount} de ${achievements.total}'
               '${latest != null ? ' · ${latest.name}' : ''}';
 
+    if (water.isLoading || leagueProvider.isLoading && leagues.isEmpty) {
+      return const LoadingView();
+    }
+
     return SafeArea(
       bottom: false,
       child: ListView(
@@ -119,9 +68,10 @@ class HomeTab extends StatelessWidget {
             goal: water.dailyGoal ?? user.dailyGoal,
             selectedAmount: water.selectedAmount,
             isAdding: water.isAdding,
-            onAdd: (amount) => _addWater(context, amount),
-            onCustomAmount: () => _addCustomAmount(context),
-            onEditGoal: () => _showMessage(context, 'Edição de meta em breve.'),
+            onAdd: (amount) => registerWater(context, amount),
+            onCustomAmount: () =>
+                pushPage(context, const RegisterWaterScreen()),
+            onEditGoal: () => pushPage(context, const EditGoalScreen()),
           ),
           const SizedBox(height: 16),
           StreakCard(streak: user.currentStreak),
@@ -197,7 +147,7 @@ class _Header extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 '${greetingFor(DateTime.now())}, $firstName!',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
                   height: 1.15,
@@ -221,10 +171,10 @@ class _Header extends StatelessWidget {
               child: Center(
                 child: Text(
                   initialsOf(user.name),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.limeAccent,
+                    color: AppColors.onPrimaryAccent,
                   ),
                 ),
               ),

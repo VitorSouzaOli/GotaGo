@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../providers/auth_provider.dart';
 import '../../painters/drop_painter.dart';
 import '../../painters/ripple_painter.dart';
@@ -138,7 +139,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: AppColors.overlayStyle,
       child: Scaffold(
         body: Center(
           child: AnimatedBuilder(

@@ -1,22 +1,76 @@
-// Mensagem aberta em "Ajuda e suporte" (por enquanto só guardada no aparelho)
-class SupportRequest {
-  final String message;
+// Mensagem de uma conversa com o suporte
+class SupportMessage {
+  final bool fromUser;
+  final String text;
   final DateTime createdAt;
 
-  const SupportRequest({required this.message, required this.createdAt});
+  const SupportMessage({
+    required this.fromUser,
+    required this.text,
+    required this.createdAt,
+  });
 
-  factory SupportRequest.fromJson(Map<String, dynamic> json) {
-    return SupportRequest(
-      message: json['message'] ?? '',
+  factory SupportMessage.fromJson(Map<String, dynamic> json) {
+    return SupportMessage(
+      fromUser: json['fromUser'] ?? true,
+      text: json['text'] ?? '',
       createdAt: DateTime.parse(json['createdAt']).toLocal(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'message': message,
+      'fromUser': fromUser,
+      'text': text,
       'createdAt': createdAt.toUtc().toIso8601String(),
     };
+  }
+}
+
+// Solicitação ao suporte (ainda guardada no aparelho; o backend não tem suporte)
+class SupportTicket {
+  final int number;
+  final String subject;
+  final bool closed;
+  final List<SupportMessage> messages;
+
+  const SupportTicket({
+    required this.number,
+    required this.subject,
+    required this.messages,
+    this.closed = false,
+  });
+
+  // "#001"
+  String get label => '#${number.toString().padLeft(3, '0')}';
+
+  factory SupportTicket.fromJson(Map<String, dynamic> json) {
+    return SupportTicket(
+      number: json['number'] ?? 1,
+      subject: json['subject'] ?? 'Solicitação',
+      closed: json['closed'] ?? false,
+      messages: (json['messages'] as List? ?? [])
+          .map((message) => SupportMessage.fromJson(message))
+          .toList(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'number': number,
+      'subject': subject,
+      'closed': closed,
+      'messages': messages.map((m) => m.toJson()).toList(),
+    };
+  }
+
+  SupportTicket withMessage(SupportMessage message) {
+    return SupportTicket(
+      number: number,
+      subject: subject,
+      closed: closed,
+      messages: [...messages, message],
+    );
   }
 }
 
@@ -31,6 +85,9 @@ class AppSettings {
   final bool pauseOnGoal;
   final bool reminderSound;
 
+  // Pedido de permissão de notificações: 'unknown' | 'granted' | 'denied'
+  final String notificationPermission;
+
   // Preferências e notificações
   final String appearance; // 'system' | 'light' | 'dark'
   final String volumeUnit; // 'ml'
@@ -38,10 +95,14 @@ class AppSettings {
   final bool notifyAchievements;
   final bool notifyTips;
 
-  // Privacidade: 'name' (nome e iniciais) | 'initials' (só iniciais)
-  final String profileVisibility;
+  // Visibilidade nas ligas (nome e constância são sempre exibidos)
+  final bool photoInLeagues;
+  final bool shareVolume;
 
-  final List<SupportRequest> supportRequests;
+  // Pedido de cópia dos dados (null = nunca pedido)
+  final DateTime? dataExportRequestedAt;
+
+  final List<SupportTicket> supportTickets;
 
   const AppSettings({
     this.remindersEnabled = true,
@@ -51,13 +112,16 @@ class AppSettings {
     this.weekdays = const [true, true, true, true, true, true, true],
     this.pauseOnGoal = true,
     this.reminderSound = false,
+    this.notificationPermission = 'unknown',
     this.appearance = 'system',
     this.volumeUnit = 'ml',
     this.notifyLeagues = true,
     this.notifyAchievements = true,
     this.notifyTips = false,
-    this.profileVisibility = 'name',
-    this.supportRequests = const [],
+    this.photoInLeagues = true,
+    this.shareVolume = false,
+    this.dataExportRequestedAt,
+    this.supportTickets = const [],
   });
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -72,16 +136,21 @@ class AppSettings {
           : defaults.weekdays,
       pauseOnGoal: json['pauseOnGoal'] ?? defaults.pauseOnGoal,
       reminderSound: json['reminderSound'] ?? defaults.reminderSound,
+      notificationPermission:
+          json['notificationPermission'] ?? defaults.notificationPermission,
       appearance: json['appearance'] ?? defaults.appearance,
       volumeUnit: json['volumeUnit'] ?? defaults.volumeUnit,
       notifyLeagues: json['notifyLeagues'] ?? defaults.notifyLeagues,
       notifyAchievements:
           json['notifyAchievements'] ?? defaults.notifyAchievements,
       notifyTips: json['notifyTips'] ?? defaults.notifyTips,
-      profileVisibility:
-          json['profileVisibility'] ?? defaults.profileVisibility,
-      supportRequests: (json['supportRequests'] as List? ?? [])
-          .map((request) => SupportRequest.fromJson(request))
+      photoInLeagues: json['photoInLeagues'] ?? defaults.photoInLeagues,
+      shareVolume: json['shareVolume'] ?? defaults.shareVolume,
+      dataExportRequestedAt: json['dataExportRequestedAt'] != null
+          ? DateTime.parse(json['dataExportRequestedAt']).toLocal()
+          : null,
+      supportTickets: (json['supportTickets'] as List? ?? [])
+          .map((ticket) => SupportTicket.fromJson(ticket))
           .toList(),
     );
   }
@@ -95,13 +164,16 @@ class AppSettings {
       'weekdays': weekdays,
       'pauseOnGoal': pauseOnGoal,
       'reminderSound': reminderSound,
+      'notificationPermission': notificationPermission,
       'appearance': appearance,
       'volumeUnit': volumeUnit,
       'notifyLeagues': notifyLeagues,
       'notifyAchievements': notifyAchievements,
       'notifyTips': notifyTips,
-      'profileVisibility': profileVisibility,
-      'supportRequests': supportRequests.map((r) => r.toJson()).toList(),
+      'photoInLeagues': photoInLeagues,
+      'shareVolume': shareVolume,
+      'dataExportRequestedAt': dataExportRequestedAt?.toUtc().toIso8601String(),
+      'supportTickets': supportTickets.map((t) => t.toJson()).toList(),
     };
   }
 
@@ -113,13 +185,16 @@ class AppSettings {
     List<bool>? weekdays,
     bool? pauseOnGoal,
     bool? reminderSound,
+    String? notificationPermission,
     String? appearance,
     String? volumeUnit,
     bool? notifyLeagues,
     bool? notifyAchievements,
     bool? notifyTips,
-    String? profileVisibility,
-    List<SupportRequest>? supportRequests,
+    bool? photoInLeagues,
+    bool? shareVolume,
+    DateTime? dataExportRequestedAt,
+    List<SupportTicket>? supportTickets,
   }) {
     return AppSettings(
       remindersEnabled: remindersEnabled ?? this.remindersEnabled,
@@ -129,13 +204,18 @@ class AppSettings {
       weekdays: weekdays ?? this.weekdays,
       pauseOnGoal: pauseOnGoal ?? this.pauseOnGoal,
       reminderSound: reminderSound ?? this.reminderSound,
+      notificationPermission:
+          notificationPermission ?? this.notificationPermission,
       appearance: appearance ?? this.appearance,
       volumeUnit: volumeUnit ?? this.volumeUnit,
       notifyLeagues: notifyLeagues ?? this.notifyLeagues,
       notifyAchievements: notifyAchievements ?? this.notifyAchievements,
       notifyTips: notifyTips ?? this.notifyTips,
-      profileVisibility: profileVisibility ?? this.profileVisibility,
-      supportRequests: supportRequests ?? this.supportRequests,
+      photoInLeagues: photoInLeagues ?? this.photoInLeagues,
+      shareVolume: shareVolume ?? this.shareVolume,
+      dataExportRequestedAt:
+          dataExportRequestedAt ?? this.dataExportRequestedAt,
+      supportTickets: supportTickets ?? this.supportTickets,
     );
   }
 }

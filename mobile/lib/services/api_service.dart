@@ -97,3 +97,23 @@ String apiErrorMessage(
 
   return fallback;
 }
+
+// Sem resposta do servidor (sem internet, servidor desligado, timeout)
+bool isConnectionError(Object error) {
+  return error is DioException && error.response == null;
+}
+
+// A rota ainda não existe no backend. O Fastify responde 404 com
+// { "message": "Route PATCH:/users/1 not found" }.
+bool isMissingRoute(Object error) {
+  if (error is! DioException || error.response?.statusCode != 404) {
+    return false;
+  }
+  final data = error.response!.data;
+  final message = data is Map ? data['message'] : null;
+  return message is String && message.startsWith('Route ');
+}
+
+// Mensagem padrão para funções que ainda dependem de uma rota nova no backend
+const String missingRouteMessage =
+    'Esta função ainda não está disponível no servidor.';

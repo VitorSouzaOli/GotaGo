@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../painters/trophy_painter.dart';
 import '../../widgets/gotago_logo.dart';
 import '../auth/login_screen.dart';
+import '../auth/password_recovery_screens.dart';
 import '../auth/register_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
@@ -13,7 +14,7 @@ class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: AppColors.overlayStyle,
       child: Scaffold(
         body: SafeArea(
           child: Padding(
@@ -69,7 +70,7 @@ class WelcomeScreen extends StatelessWidget {
                       MaterialPageRoute(builder: (_) => const RegisterScreen()),
                     );
                   },
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text('Criar minha conta'),
@@ -77,7 +78,7 @@ class WelcomeScreen extends StatelessWidget {
                       Icon(
                         Icons.arrow_forward_rounded,
                         size: 20,
-                        color: AppColors.limeAccent,
+                        color: AppColors.onPrimaryAccent,
                       ),
                     ],
                   ),
@@ -89,7 +90,10 @@ class WelcomeScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      MaterialPageRoute(
+                        settings: const RouteSettings(name: loginRouteName),
+                        builder: (_) => const LoginScreen(),
+                      ),
                     );
                   },
                   child: const Text('Já tenho conta · Entrar'),
@@ -98,7 +102,7 @@ class WelcomeScreen extends StatelessWidget {
 
                 // Aviso sobre constância
                 Text.rich(
-                  const TextSpan(
+                  TextSpan(
                     children: [
                       WidgetSpan(
                         alignment: PlaceholderAlignment.middle,

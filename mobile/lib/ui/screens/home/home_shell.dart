@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../providers/achievement_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/league_provider.dart';
@@ -16,6 +17,7 @@ import '../settings/help_screen.dart';
 import '../settings/preferences_screen.dart';
 import '../settings/privacy_screen.dart';
 import '../settings/reminders_screen.dart';
+import '../../navigation/shell_controller.dart';
 import 'home_tab.dart';
 
 // Tela principal com a barra de navegação inferior
@@ -27,11 +29,8 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  static const _profileTab = 3;
-
-  int _currentIndex = 0;
-  // Subtela aberta dentro da aba Perfil, mantendo a barra de navegação
-  ProfilePage _profilePage = ProfilePage.main;
+  // Aba e subtela do Perfil ficam no ShellController (ver shell_controller.dart)
+  ShellController get _shell => context.read<ShellController>();
 
   @override
   void initState() {
@@ -48,28 +47,17 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  void _goTo(int index) {
-    setState(() {
-      // Tocar em "Perfil" (ou noutra aba) volta para a tela principal do Perfil
-      _profilePage = ProfilePage.main;
-      _currentIndex = index;
-    });
-  }
+  void _goTo(int index) => _shell.goTo(index);
 
-  void _openProfilePage(ProfilePage page) {
-    setState(() {
-      _currentIndex = _profileTab;
-      _profilePage = page;
-    });
-  }
+  void _openProfilePage(ProfilePage page) => _shell.openProfilePage(page);
 
   void _backToProfile() => _openProfilePage(ProfilePage.main);
 
-  Widget _buildProfileTab() {
+  Widget _buildProfileTab(ProfilePage profilePage) {
     // Key por subtela: cada uma começa do topo e com estado novo
     return KeyedSubtree(
-      key: ValueKey(_profilePage),
-      child: switch (_profilePage) {
+      key: ValueKey(profilePage),
+      child: switch (profilePage) {
         ProfilePage.main => ProfileScreen(onOpenPage: _openProfilePage),
         ProfilePage.achievements => AchievementsScreen(onBack: _backToProfile),
         ProfilePage.reminders => RemindersScreen(onBack: _backToProfile),
@@ -78,20 +66,18 @@ class _HomeShellState extends State<HomeShell> {
           onOpenReminders: () => _openProfilePage(ProfilePage.reminders),
         ),
         ProfilePage.help => HelpScreen(onBack: _backToProfile),
-        ProfilePage.privacy => PrivacyScreen(
-          onBack: _backToProfile,
-          onOpenHelp: () => _openProfilePage(ProfilePage.help),
-        ),
+        ProfilePage.privacy => PrivacyScreen(onBack: _backToProfile),
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final inSubpage = _profilePage != ProfilePage.main;
+    final shell = context.watch<ShellController>();
+    final inSubpage = shell.profilePage != ProfilePage.main;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: AppColors.overlayStyle,
       // O "voltar" do Android fecha a subtela do Perfil antes de sair do app
       child: PopScope(
         canPop: !inSubpage,
@@ -100,20 +86,20 @@ class _HomeShellState extends State<HomeShell> {
         },
         child: Scaffold(
           body: IndexedStack(
-            index: _currentIndex,
+            index: shell.tab,
             children: [
               HomeTab(
                 onNavigate: _goTo,
                 onOpenAchievements: () =>
                     _openProfilePage(ProfilePage.achievements),
               ),
-              LeaguesScreen(onAvatarTap: () => _goTo(_profileTab)),
+              LeaguesScreen(onAvatarTap: () => _goTo(ShellTab.profile)),
               const HistoryScreen(),
-              _buildProfileTab(),
+              _buildProfileTab(shell.profilePage),
             ],
           ),
           bottomNavigationBar: NavigationBar(
-            selectedIndex: _currentIndex,
+            selectedIndex: shell.tab,
             onDestinationSelected: _goTo,
             destinations: const [
               NavigationDestination(
