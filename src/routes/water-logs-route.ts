@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middlewares/authenticate.js";
+import { startOfDay, toDateKey } from "../utils/date-range.js";
 import { checkAndUnlockAchievements } from "../utils/check-achieviments.js";
 
 export async function waterLogRoutes(app: FastifyInstance) {
@@ -94,6 +95,91 @@ export async function waterLogRoutes(app: FastifyInstance) {
       streakUpdated,
       newAchievements, // Lista de novas conquistas desbloqueadas nesta requisição
       warning,
+    });
+  });
+
+  // Consumo de hoje: total, meta, streak e a lista de registros do dia (mais recente primeiro)
+  app.get("/water-logs/today", { onRequest: [authenticate] }, async (request, reply) => {
+    const userId = request.user.sub;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { dailyGoal: true, currentStreak: true, maxStreak: true },
+    });
+
+    if (!user) {
+      return reply.status(404).send({ error: "Utilizador não encontrado." });
+    }
+
+    const start = startOfDay(new Date());
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+
+    const logs = await prisma.waterLog.findMany({
+      where: { userId, createdAt: { gte: start, lt: end } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, amount: true, createdAt: true },
+    });
+
+    const totalToday = logs.reduce((sum, log) => sum + log.amount, 0);
+
+    return reply.status(200).send({
+      date: toDateKey(start),
+      totalToday,
+      dailyGoal: user.dailyGoal,
+      goalReached: totalToday >= user.dailyGoal,
+      currentStreak: user.currentStreak,
+      maxStreak: user.maxStreak,
+      logs,
+    });
+  });
+
+  // Histórico de consumo: total por dia dos últimos N dias (padrão 7, máximo 90), mais recente primeiro
+  app.get("/water-logs/history", { onRequest: [authenticate] }, async (request, reply) => {
+    const historyQuerySchema = z.object({
+      days: z.coerce.number().int().min(1).max(90).default(7),
+    });
+
+    const { days } = historyQuerySchema.parse(request.query);
+    const userId = request.user.sub;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { dailyGoal: true },
+    });
+
+    if (!user) {
+      return reply.status(404).send({ error: "Utilizador não encontrado." });
+    }
+
+    const firstDay = startOfDay(new Date());
+    firstDay.setDate(firstDay.getDate() - (days - 1));
+
+    const logs = await prisma.waterLog.findMany({
+      where: { userId, createdAt: { gte: firstDay } },
+      select: { amount: true, createdAt: true },
+    });
+
+    const totalsByDay = new Map<string, number>();
+    for (const log of logs) {
+      const key = toDateKey(log.createdAt);
+      totalsByDay.set(key, (totalsByDay.get(key) ?? 0) + log.amount);
+    }
+
+    // Inclui os dias sem nenhum registro (total 0) para o app montar o gráfico completo
+    const history = [];
+    for (let i = 0; i < days; i++) {
+      const day = new Date(firstDay);
+      day.setDate(firstDay.getDate() + i);
+      const key = toDateKey(day);
+      const total = totalsByDay.get(key) ?? 0;
+
+      history.push({ date: key, total, goalReached: total >= user.dailyGoal });
+    }
+
+    return reply.status(200).send({
+      dailyGoal: user.dailyGoal,
+      history: history.reverse(),
     });
   });
 }
