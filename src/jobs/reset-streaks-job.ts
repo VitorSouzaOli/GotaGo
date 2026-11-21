@@ -14,7 +14,7 @@ export async function resetBrokenStreaks() {
   // Só importa quem tem uma sequência ativa
   const users = await prisma.user.findMany({
     where: { currentStreak: { gt: 0 } },
-    select: { id: true, dailyGoal: true },
+    select: { id: true, dailyGoal: true, currentStreak: true },
   });
 
   if (users.length === 0) return 0;
@@ -41,16 +41,23 @@ export async function resetBrokenStreaks() {
     (user) => (yesterdayTotals.get(user.id) ?? 0) < user.dailyGoal,
   );
 
+  let updatedCount = 0;
+
   for (const user of brokenUsers) {
     const reachedGoalToday = (todayTotals.get(user.id) ?? 0) >= user.dailyGoal;
+    const newStreak = reachedGoalToday ? 1 : 0;
+
+    // Já está correto (ex.: rodou antes hoje): não precisa atualizar
+    if (user.currentStreak === newStreak) continue;
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { currentStreak: reachedGoalToday ? 1 : 0 },
+      data: { currentStreak: newStreak },
     });
+    updatedCount++;
   }
 
-  return brokenUsers.length;
+  return updatedCount;
 }
 
 // Roda o reset ao ligar o servidor (recupera dias em que ele ficou desligado)
