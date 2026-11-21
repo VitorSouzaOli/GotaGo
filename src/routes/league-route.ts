@@ -173,4 +173,32 @@ export async function leagueRoutes(app: FastifyInstance) {
       leaderboard,
     });
   });
+
+  // 4. Listar as ligas em que o utilizador autenticado participa
+  app.get("/leagues", { onRequest: [authenticate] }, async (request, reply) => {
+    const userId = request.user.sub;
+
+    const memberships = await prisma.leagueMember.findMany({
+      where: { userId },
+      orderBy: { joinedAt: "desc" },
+      include: {
+        league: {
+          include: { _count: { select: { members: true } } },
+        },
+      },
+    });
+
+    const leagues = memberships.map(({ league, joinedAt }) => ({
+      id: league.id,
+      name: league.name,
+      description: league.description,
+      code: league.code,
+      endDate: league.endDate,
+      isOwner: league.ownerId === userId,
+      memberCount: league._count.members,
+      joinedAt,
+    }));
+
+    return reply.status(200).send({ leagues });
+  });
 }

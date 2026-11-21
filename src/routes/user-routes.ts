@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { hash } from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { authenticate } from "../middlewares/authenticate.js";
 import { calculateWaterGoal } from "../utils/calculate-water-goal.js";
 
 export async function userRoutes(app: FastifyInstance) {
@@ -88,6 +89,31 @@ export async function userRoutes(app: FastifyInstance) {
         maxStreak: user.maxStreak,
       },
       warning: goalWarning,
+    });
+  });
+
+  // Perfil do utilizador autenticado (o ID vem do token)
+  app.get("/users/me", { onRequest: [authenticate] }, async (request, reply) => {
+    const user = await prisma.user.findUnique({
+      where: { id: request.user.sub },
+    });
+
+    if (!user) {
+      return reply.status(404).send({ error: "Utilizador não encontrado." });
+    }
+
+    return reply.status(200).send({
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        weight: user.weight,
+        dailyGoal: user.dailyGoal,
+        currentStreak: user.currentStreak,
+        maxStreak: user.maxStreak,
+      },
     });
   });
 }
