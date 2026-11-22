@@ -6,9 +6,14 @@ import '../../../core/utils/formatters.dart';
 import '../../../models/user_model.dart';
 import '../../../providers/achievement_provider.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/league_provider.dart';
 import '../../../providers/water_provider.dart';
+import '../../widgets/flow_page.dart';
 import '../../widgets/footer_note.dart';
 import '../../widgets/gotago_logo.dart';
+import '../common/status_screens.dart';
+import '../goal/goal_screens.dart';
+import '../water/water_screens.dart';
 import 'widgets/home_cards.dart';
 import 'widgets/hydration_card.dart';
 
@@ -16,67 +21,13 @@ import 'widgets/hydration_card.dart';
 class HomeTab extends StatelessWidget {
   // Troca a aba da barra de navegação (1 = Ligas, 2 = Histórico, 3 = Perfil)
   final ValueChanged<int> onNavigate;
+  final VoidCallback onOpenAchievements;
 
-  const HomeTab({super.key, required this.onNavigate});
-
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _addWater(BuildContext context, int amount) async {
-    final authProvider = context.read<AuthProvider>();
-    final waterProvider = context.read<WaterProvider>();
-    final achievementProvider = context.read<AchievementProvider>();
-
-    final user = authProvider.user;
-    if (user == null) return;
-
-    final result = await waterProvider.addWater(user.id, amount);
-    if (!context.mounted) return;
-
-    if (result == null) {
-      final error = waterProvider.errorMessage;
-      if (error != null) _showMessage(context, error);
-      return;
-    }
-
-    if (result.streakUpdated) await authProvider.incrementStreak();
-
-    if (result.newAchievements.isNotEmpty) {
-      achievementProvider.load(user.id);
-      if (context.mounted) {
-        _showMessage(
-          context,
-          'Conquista desbloqueada: ${result.newAchievements.join(', ')}',
-        );
-      }
-    }
-
-    // Alerta de consumo excessivo devolvido pelo backend (> 4000 ml no dia)
-    final warning = result.warning;
-    if (warning != null && context.mounted) {
-      showDialog(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Atenção'),
-          content: Text(warning),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Entendi'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
-  Future<void> _addCustomAmount(BuildContext context) async {
-    final amount = await showCustomAmountSheet(context);
-    if (amount != null && context.mounted) await _addWater(context, amount);
-  }
+  const HomeTab({
+    super.key,
+    required this.onNavigate,
+    required this.onOpenAchievements,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +37,9 @@ class HomeTab extends StatelessWidget {
 
     final water = context.watch<WaterProvider>();
     final achievements = context.watch<AchievementProvider>();
+    final leagueProvider = context.watch<LeagueProvider>();
+    final leagues = leagueProvider.leagues;
+    final selectedLeague = leagueProvider.selected;
 
     final lastLogAt = water.lastLogAt;
     final historySubtitle = lastLogAt != null
@@ -97,6 +51,10 @@ class HomeTab extends StatelessWidget {
         ? 'Nenhuma ainda'
         : '${achievements.unlockedCount} de ${achievements.total}'
               '${latest != null ? ' · ${latest.name}' : ''}';
+
+    if (water.isLoading || leagueProvider.isLoading && leagues.isEmpty) {
+      return const LoadingView();
+    }
 
     return SafeArea(
       bottom: false,
@@ -110,21 +68,30 @@ class HomeTab extends StatelessWidget {
             goal: water.dailyGoal ?? user.dailyGoal,
             selectedAmount: water.selectedAmount,
             isAdding: water.isAdding,
-            onAdd: (amount) => _addWater(context, amount),
-            onCustomAmount: () => _addCustomAmount(context),
-            onEditGoal: () =>
-                _showMessage(context, 'Edição de meta em breve.'),
+            onAdd: (amount) => registerWater(context, amount),
+            onCustomAmount: () =>
+                pushPage(context, const RegisterWaterScreen()),
+            onEditGoal: () => pushPage(context, const EditGoalScreen()),
           ),
           const SizedBox(height: 16),
           StreakCard(streak: user.currentStreak),
           const SizedBox(height: 24),
           SectionHeader(
             title: 'Suas ligas',
-            actionLabel: 'Ver ligas',
+            actionLabel: leagues.isEmpty
+                ? 'Ver ligas'
+                : 'Ver ${leagues.length} ${leagues.length == 1 ? 'liga' : 'ligas'}',
             onAction: () => onNavigate(1),
           ),
           const SizedBox(height: 12),
-          LeagueEmptyCard(onTap: () => onNavigate(1)),
+          if (selectedLeague != null)
+            LeagueSummaryCard(
+              league: selectedLeague,
+              userId: user.id,
+              onTap: () => onNavigate(1),
+            )
+          else
+            LeagueEmptyCard(onTap: () => onNavigate(1)),
           const SizedBox(height: 16),
           IntrinsicHeight(
             child: Row(
@@ -144,8 +111,7 @@ class HomeTab extends StatelessWidget {
                     icon: Icons.workspace_premium_outlined,
                     title: 'Conquistas',
                     subtitle: achievementsSubtitle,
-                    onTap: () =>
-                        _showMessage(context, 'Tela de conquistas em breve.'),
+                    onTap: onOpenAchievements,
                   ),
                 ),
               ],
@@ -181,7 +147,7 @@ class _Header extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 '${greetingFor(DateTime.now())}, $firstName!',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
                   height: 1.15,
@@ -205,10 +171,10 @@ class _Header extends StatelessWidget {
               child: Center(
                 child: Text(
                   initialsOf(user.name),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.limeAccent,
+                    color: AppColors.onPrimaryAccent,
                   ),
                 ),
               ),

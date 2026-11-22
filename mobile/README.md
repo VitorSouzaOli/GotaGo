@@ -39,8 +39,13 @@ Com o emulador Android aberto, em outro terminal:
 ```bash
 cd mobile
 flutter pub get
-flutter run
+flutter run --dart-define=MOCK_API=false
 ```
+
+> **Atenção:** o `flutter run` puro abre o app no **modo demo**, com dados falsos e sem
+> chamar o backend (ver abaixo). Pra testar com a API, use sempre
+> `--dart-define=MOCK_API=false`. No VS Code, escolha a configuração
+> **"GotaGo (API real)"** em *Run and Debug*.
 
 O app abre na splash animada. Depois vem a tela de boas-vindas. Crie uma conta e
 você chega na Home.
@@ -50,6 +55,30 @@ você chega na Home.
 - **Durante o desenvolvimento:** `r` no terminal faz hot reload e `R` faz hot restart.
   Mudanças no `pubspec.yaml`, nas fontes ou no ícone exigem parar e rodar
   `flutter run` de novo.
+
+### Modo demo (sem backend)
+
+| Comando | Modo |
+|---|---|
+| `flutter run` | **Demo** (padrão em debug) |
+| `flutter run --dart-define=MOCK_API=false` | API real |
+| `flutter build ...` (release) | API real, a menos que passe `MOCK_API=true` |
+
+No modo demo, o [`MockApiInterceptor`](lib/services/mock_api_interceptor.dart)
+responde com dados falsos às rotas de cadastro, login, registro de água e
+conquistas, e aparece uma faixa **DEMO** no canto da tela.
+
+- **Login:** qualquer e-mail e senha entram como "Vitor Souza", com meta de
+  2.500 ml e 6 dias de constância.
+- **Ligas:** "Time do gole" e "Gotas do trabalho" já vêm prontas. O código
+  `RITMO6` entra na liga "Ritmo de água"; qualquer outro código mostra o erro.
+- **Cadastro:** o e-mail `vitor@exemplo.com` simula "e-mail já cadastrado".
+- **Recuperar senha:** em "Confira seu e-mail" aparece o atalho
+  "Abrir o link do e-mail (demo)", que faz o papel do link recebido.
+- **Suporte:** cada solicitação recebe uma resposta automática da "Equipe GotaGo".
+- **Dados:** ficam só na memória e somem quando o app é fechado.
+- **Sessão:** ao abrir com a API real, uma sessão salva no modo demo é descartada
+  automaticamente e o app pede login de novo.
 
 ### Endereço da API
 
@@ -91,7 +120,10 @@ mobile/
 │   └── ui/
 │       ├── painters/    CustomPainters: gota, ondas, troféu, anel, logo do Google
 │       ├── widgets/     Componentes reutilizáveis (logo, campos, layout de auth)
-│       └── screens/     splash, welcome, auth (login/cadastro), home
+│       ├── navigation/  ShellController: aba ativa, usado pelas telas de fluxo
+│       └── screens/     splash, welcome, auth, goal, water, home, leagues, history,
+│                        profile, achievements, support, settings, common
+│                        (as telas de fluxo usam o molde widgets/flow_page.dart)
 └── test/
 ```
 
@@ -104,10 +136,15 @@ Ligas, Histórico e Perfil).
 
 | Rota | Onde | Body enviado | O que o app lê da resposta |
 |---|---|---|---|
-| `POST /users` | Cadastro | `name`, `username`, `email`, `password` | `user` |
+| `POST /users` | Cadastro (tela "Vamos encontrar seu ritmo") | `name`, `username`, `email`, `password`, `weightKg?`, `customDailyGoal?` | `user` |
 | `POST /sessions` | Login | `login` (e-mail ou username), `password` | `user` |
 | `POST /water-logs` | Home: botões "+ ml" | `userId`, `amount` | `totalToday`, `dailyGoal`, `waterLog.createdAt`, `streakUpdated`, `newAchievements`, `warning` |
-| `GET /users/:userId/achievements` | Home: card Conquistas | — | `achievements[]` com `name`, `isUnlocked`, `unlockedAt` |
+| `GET /users/:userId/achievements` | Home e Perfil: conquistas | — | `achievements[]` com `code`, `name`, `isUnlocked`, `unlockedAt` |
+| `POST /leagues` | Ligas: "Criar liga" | `name`, `description?`, `ownerId` | `league.id` |
+| `POST /leagues/join` | Ligas: "Entrar com código" | `userId`, `code` | `membership.leagueId` |
+| `GET /leagues/:id/leaderboard` | Ligas e Home: ranking | — | `league` (`id`, `name`, `code`) e `leaderboard[]` (`id`, `name`, `currentStreak`) |
+| `GET /users/:userId/leagues` | Ligas, Home e Perfil | — | `leagues[]` com `id` (**rota ainda não existe no backend**, ver abaixo) |
+| `GET /users/:userId/water-logs?days=30` | Home e Histórico | — | `waterLogs[]` com `amount`, `createdAt` (**rota ainda não existe no backend**, ver abaixo) |
 
 O objeto `user` é lido com os campos `id`, `name`, `username`, `email`,
 `avatarUrl`, `weight`, `dailyGoal`, `currentStreak` e `maxStreak`
@@ -119,8 +156,8 @@ Se você mudar esses textos no backend, atualize também o mapeamento no
 
 | Texto que o backend envia | Mensagem que o app mostra |
 |---|---|
-| `Invalid credentials` | "E-mail ou senha incorretos." |
-| `Email already exists` | "Este e-mail já está cadastrado." |
+| `Invalid credentials` | Tela "Vamos tentar de novo?" (no login) / "A senha atual está incorreta." (alterar senha) |
+| `Email already exists` | Tela "Você já tem uma conta" |
 | `Username already exists` | O app tenta de novo com um sufixo numérico no username |
 
 Qualquer outro erro aparece como uma mensagem genérica. Sem resposta do servidor, o
@@ -132,18 +169,38 @@ São soluções provisórias no app, cada uma esperando uma rota:
 
 | Necessidade | Situação atual no app | Rota sugerida |
 |---|---|---|
-| Total consumido hoje | Guardado **só no aparelho** (`WaterProvider`) e zerado na virada do dia. Registros feitos em outro aparelho não aparecem | `GET /users/:userId/water-logs/today` → `{ totalToday, dailyGoal, lastLog }` |
-| Ligas do usuário | A Home mostra o estado vazio "Nenhuma liga ainda" | `GET /users/:userId/leagues` |
+| Histórico de registros (Home e aba Histórico) | O app **já chama** `GET /users/:userId/water-logs?days=30`. Enquanto a rota não existir, ela falha e o app usa os registros guardados **no aparelho**, ou seja, registros feitos em outro aparelho não aparecem | Criar a rota devolvendo `{ waterLogs: [{ id, amount, createdAt }] }` dos últimos `days` dias, como o [`MockApiInterceptor`](lib/services/mock_api_interceptor.dart) faz |
+| Ligas do usuário | O app **já chama** `GET /users/:userId/leagues`. Enquanto a rota não existir, usa os ids das ligas criadas ou em que entrou **por este aparelho** e busca o ranking de cada uma | Criar a rota devolvendo `{ leagues: [{ id, name, description, code }] }`, como o mock faz |
 | Dados atualizados do usuário | A sessão usa o `user` salvo no login; streak e meta podem ficar desatualizados | `GET /me` (com JWT) |
 | Autenticação | Sem token: o app envia `userId` no body. O `ApiService` já lê `jwt_token` do storage e envia `Authorization: Bearer` se ele existir | `POST /sessions` devolver `token` |
-| Editar meta | Botão "Editar meta" mostra "em breve" | `PATCH /me` com `dailyGoal` |
+| Editar meta e perfil | O app **já chama** `PATCH /users/:id` com `name`, `weight`, `dailyGoal`. Sem a rota, a mudança fica salva **só no aparelho** (e o próximo `POST /water-logs` devolve a meta antiga do servidor) | Criar `PATCH /users/:id` |
+| Corrigir e excluir registros | O app **já chama** `PATCH /water-logs/:id` (`amount`, `createdAt`) e `DELETE /water-logs/:id`. Sem as rotas, mostra "Esta função ainda não está disponível no servidor." | Criar as duas rotas |
+| Prévia da liga antes de entrar | O app **já chama** `GET /leagues/code/:code` → `{ league: { id, name, code, memberCount, ownerName } }`. Sem a rota, entra direto (pula "Esta é a sua equipe?") | Criar a rota |
+| Sair da liga e administrar | O app **já chama** `DELETE /leagues/:id/members/:userId` (sair/remover), `PATCH /leagues/:id` (`name`) e `POST /leagues/:id/code` (novo código). O leaderboard também deveria devolver `league.ownerId`, para o app saber quem administra | Criar as rotas e incluir `ownerId` |
 | Cadastro sem username | A tela não pede username. O app gera a partir do e-mail (`vitor@...` → `vitor`) | Tornar `username` opcional no `POST /users`, ou manter assim |
-| Google, recuperação de senha | Botões mostram "em breve" | — |
+| Recuperação de senha | O app **já chama** `POST /passwords/forgot` (`email`) e `POST /passwords/reset` (`token`, `password`) | Criar as rotas e o envio de e-mail com o link |
+| Login com Google, foto do perfil, anexos no suporte | Mostram "em breve" | — |
+| Lembretes, preferências e privacidade (Perfil → "Do seu jeito") | Salvos **só no aparelho** (`SettingsProvider`). O app ainda **não dispara notificações** de lembrete | Rota para salvar as preferências na conta, se quiserem sincronizar entre aparelhos; as notificações em si são do app (ex.: `flutter_local_notifications`) |
+| Suporte (solicitações e conversas) | Ficam guardadas no aparelho (`SettingsProvider`), e a tela avisa isso | Rota de suporte ou um canal externo (e-mail, chat) |
+| Alterar senha e excluir conta | O app **já chama** `PATCH /users/:id/password` (`currentPassword`, `newPassword`) e `DELETE /users/:id` | Criar as rotas |
+| Cópia dos dados, dispositivos conectados | Pedido de cópia fica registrado no aparelho; dispositivos mostra só a sessão atual | Exportação de dados e registro de sessões |
 | App rodando na web | O navegador bloqueia as chamadas | Registrar o `@fastify/cors` no `server.ts` |
+
+Todas essas rotas já são respondidas pelo modo demo, no formato esperado: o
+[`MockApiInterceptor`](lib/services/mock_api_interceptor.dart) serve de
+especificação.
 
 Quando o JWT existir: salve o token com a chave `jwt_token` no
 `FlutterSecureStorage`, que o interceptor do `ApiService` já está pronto. Depois
 remova o `userId` dos bodies.
+
+## Tema claro e escuro
+
+Em Perfil → Preferências → Aparência: Claro, Escuro ou Sistema. As cores ficam
+em [`app_colors.dart`](lib/core/theme/app_colors.dart): as da marca são
+constantes, e as de superfície e texto são *getters* que mudam com o tema. Por
+isso elas **não podem ser usadas em `const`** (o analisador acusa). Ao trocar o
+tema, o `main.dart` reconstrói toda a árvore.
 
 ## Ícone do app
 

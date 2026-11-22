@@ -5,9 +5,15 @@ import 'app_colors.dart';
 class AppTheme {
   static const fontFamily = 'PlusJakartaSans';
 
-  static ThemeData get lightTheme {
+  // Tema conforme AppColors.isDark (claro ou escuro)
+  static ThemeData get current {
+    final brightness = AppColors.isDark ? Brightness.dark : Brightness.light;
+
     // Plus Jakarta Sans embutida em assets/fonts (declarada no pubspec.yaml)
-    final baseTextTheme = ThemeData(fontFamily: fontFamily).textTheme;
+    final baseTextTheme = ThemeData(
+      fontFamily: fontFamily,
+      brightness: brightness,
+    ).textTheme;
 
     OutlineInputBorder inputBorder(Color color, [double width = 1.2]) {
       return OutlineInputBorder(
@@ -18,10 +24,13 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      brightness: brightness,
       fontFamily: fontFamily,
       scaffoldBackgroundColor: AppColors.background,
       colorScheme: ColorScheme.fromSeed(
+        brightness: brightness,
         seedColor: AppColors.primaryDark,
+        onPrimary: AppColors.white,
         primary: AppColors.primaryDark,
         surface: AppColors.background,
         error: AppColors.error,
@@ -54,7 +63,7 @@ class AppTheme {
           foregroundColor: AppColors.primaryDark,
           backgroundColor: AppColors.surfaceLight,
           minimumSize: const Size(double.infinity, 56),
-          side: const BorderSide(color: AppColors.outlineBorder, width: 1.2),
+          side: BorderSide(color: AppColors.outlineBorder, width: 1.2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -123,6 +132,15 @@ class AppTheme {
             color: selected ? AppColors.tealDark : AppColors.textSecondary,
           );
         }),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.all(AppColors.white),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? AppColors.dropDark
+              : AppColors.ringTrack;
+        }),
+        trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

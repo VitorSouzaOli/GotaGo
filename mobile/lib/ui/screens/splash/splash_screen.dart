@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../providers/auth_provider.dart';
 import '../../painters/drop_painter.dart';
 import '../../painters/ripple_painter.dart';
@@ -60,28 +61,35 @@ class _SplashScreenState extends State<SplashScreen>
 
     // 3b. Gota comprime ao tocar o "solo", estica um pouco e assenta (50% a 70%)
     // 1 = achatada, 0 = formato normal, negativo = esticada
-    _dropSquashAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: 0.0, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeOut)),
-        weight: 30,
-      ),
-      TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: -0.3)
-            .chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 40,
-      ),
-      TweenSequenceItem(
-        tween: Tween(begin: -0.3, end: 0.0)
-            .chain(CurveTween(curve: Curves.easeOut)),
-        weight: 30,
-      ),
-    ]).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.50, 0.70),
-      ),
-    );
+    _dropSquashAnimation =
+        TweenSequence<double>([
+          TweenSequenceItem(
+            tween: Tween(
+              begin: 0.0,
+              end: 1.0,
+            ).chain(CurveTween(curve: Curves.easeOut)),
+            weight: 30,
+          ),
+          TweenSequenceItem(
+            tween: Tween(
+              begin: 1.0,
+              end: -0.3,
+            ).chain(CurveTween(curve: Curves.easeInOut)),
+            weight: 40,
+          ),
+          TweenSequenceItem(
+            tween: Tween(
+              begin: -0.3,
+              end: 0.0,
+            ).chain(CurveTween(curve: Curves.easeOut)),
+            weight: 30,
+          ),
+        ]).animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.50, 0.70),
+          ),
+        );
 
     // 4. Ondas nascem no impacto, se abrem e suavizam (48% a 100%)
     _rippleAnimation = CurvedAnimation(
@@ -131,7 +139,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: AppColors.overlayStyle,
       child: Scaffold(
         body: Center(
           child: AnimatedBuilder(

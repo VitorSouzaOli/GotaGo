@@ -10,6 +10,7 @@ import 'package:gotago/providers/achievement_provider.dart';
 import 'package:gotago/providers/auth_provider.dart';
 import 'package:gotago/providers/water_provider.dart';
 import 'package:gotago/services/api_service.dart';
+import 'package:gotago/ui/navigation/shell_controller.dart';
 import 'package:gotago/ui/screens/welcome/welcome_screen.dart';
 
 void main() {
@@ -17,8 +18,15 @@ void main() {
   // causaria overflows que não acontecem no aparelho
   setUpAll(() async {
     final loader = FontLoader(AppTheme.fontFamily);
-    for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) {
-      final bytes = File('assets/fonts/PlusJakartaSans-$weight.ttf').readAsBytesSync();
+    for (final weight in [
+      'Regular',
+      'Medium',
+      'SemiBold',
+      'Bold',
+      'ExtraBold',
+    ]) {
+      final bytes = File('assets/fonts/PlusJakartaSans-$weight.ttf')
+          .readAsBytesSync();
       loader.addFont(Future.value(ByteData.sublistView(bytes)));
     }
     await loader.load();
@@ -34,11 +42,14 @@ void main() {
       MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => AuthProvider(apiService)),
+          ChangeNotifierProvider(create: (_) => ShellController()),
           ChangeNotifierProvider(create: (_) => WaterProvider(apiService)),
-          ChangeNotifierProvider(create: (_) => AchievementProvider(apiService)),
+          ChangeNotifierProvider(
+            create: (_) => AchievementProvider(apiService),
+          ),
         ],
         child: MaterialApp(
-          theme: AppTheme.lightTheme,
+          theme: AppTheme.current,
           home: const WelcomeScreen(),
         ),
       ),
@@ -72,6 +83,9 @@ void main() {
     await tester.tap(find.text('Criar conta'));
     await tester.pumpAndSettle();
 
-    expect(find.text('As senhas não são iguais'), findsOneWidget);
+    expect(
+      find.text('As senhas não coincidem. Digite novamente.'),
+      findsOneWidget,
+    );
   });
 }

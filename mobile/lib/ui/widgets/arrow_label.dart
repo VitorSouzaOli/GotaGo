@@ -15,10 +15,10 @@ class ArrowLabel extends StatelessWidget {
       children: [
         Text(text),
         const SizedBox(width: 10),
-        const Icon(
+        Icon(
           Icons.arrow_forward_rounded,
           size: 20,
-          color: AppColors.limeAccent,
+          color: AppColors.onPrimaryAccent,
         ),
       ],
     );

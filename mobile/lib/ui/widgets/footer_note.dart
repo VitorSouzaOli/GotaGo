@@ -13,7 +13,7 @@ class FooterNote extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(
+        Icon(
           Icons.verified_user_outlined,
           size: 16,
           color: AppColors.textSecondary,
@@ -23,10 +23,7 @@ class FooterNote extends StatelessWidget {
           child: Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
         ),
       ],

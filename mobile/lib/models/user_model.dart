@@ -49,14 +49,20 @@ class UserModel {
     };
   }
 
-  UserModel copyWith({int? dailyGoal, int? currentStreak, int? maxStreak}) {
+  UserModel copyWith({
+    String? name,
+    double? weight,
+    int? dailyGoal,
+    int? currentStreak,
+    int? maxStreak,
+  }) {
     return UserModel(
       id: id,
-      name: name,
+      name: name ?? this.name,
       username: username,
       email: email,
       avatarUrl: avatarUrl,
-      weight: weight,
+      weight: weight ?? this.weight,
       dailyGoal: dailyGoal ?? this.dailyGoal,
       currentStreak: currentStreak ?? this.currentStreak,
       maxStreak: maxStreak ?? this.maxStreak,

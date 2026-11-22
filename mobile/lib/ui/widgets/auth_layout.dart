@@ -24,7 +24,7 @@ class AuthLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: AppColors.overlayStyle,
       child: Scaffold(
         body: SafeArea(
           child: LayoutBuilder(
@@ -42,7 +42,7 @@ class AuthLayout extends StatelessWidget {
                         const SizedBox(height: 32),
                         Text(
                           title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.w800,
                             height: 1.1,
@@ -53,7 +53,7 @@ class AuthLayout extends StatelessWidget {
                         const SizedBox(height: 10),
                         Text(
                           subtitle,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             height: 1.5,
                             color: AppColors.textSecondary,
@@ -91,12 +91,12 @@ class _AuthTopBar extends StatelessWidget {
           color: AppColors.surfaceLight,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: const BorderSide(color: AppColors.outlineBorder, width: 1.2),
+            side: BorderSide(color: AppColors.outlineBorder, width: 1.2),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: () => Navigator.maybePop(context),
-            child: const SizedBox(
+            child: SizedBox(
               width: 44,
               height: 44,
               child: Icon(
@@ -117,10 +117,7 @@ class _AuthTopBar extends StatelessWidget {
             color: AppColors.limeAccent,
             borderRadius: BorderRadius.circular(14),
           ),
-          child: const CustomPaint(
-            size: Size(16, 20),
-            painter: DropPainter(),
-          ),
+          child: const CustomPaint(size: Size(16, 20), painter: DropPainter()),
         ),
       ],
     );

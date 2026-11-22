@@ -15,6 +15,14 @@ class AppTextField extends StatefulWidget {
   final Iterable<String>? autofillHints;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
+  // Erro vindo do servidor (ex.: e-mail já cadastrado): borda e texto vermelhos
+  final String? errorText;
+  final String? suffixText;
+  final int maxLines;
+  // Campo só de leitura que abre outra coisa ao tocar (ex.: relógio)
+  final VoidCallback? onTap;
+  final TextCapitalization textCapitalization;
 
   const AppTextField({
     super.key,
@@ -28,6 +36,12 @@ class AppTextField extends StatefulWidget {
     this.autofillHints,
     this.validator,
     this.onSubmitted,
+    this.onChanged,
+    this.errorText,
+    this.suffixText,
+    this.maxLines = 1,
+    this.onTap,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -44,7 +58,7 @@ class _AppTextFieldState extends State<AppTextField> {
       children: [
         Text(
           widget.label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
             color: AppColors.primaryDark,
@@ -59,11 +73,20 @@ class _AppTextFieldState extends State<AppTextField> {
           autofillHints: widget.autofillHints,
           validator: widget.validator,
           onFieldSubmitted: widget.onSubmitted,
-          style: const TextStyle(fontSize: 16, color: AppColors.primaryDark),
+          onChanged: widget.onChanged,
+          readOnly: widget.onTap != null,
+          onTap: widget.onTap,
+          maxLines: widget.isPassword ? 1 : widget.maxLines,
+          minLines: widget.maxLines > 1 ? widget.maxLines : null,
+          textCapitalization: widget.textCapitalization,
+          style: TextStyle(fontSize: 16, color: AppColors.primaryDark),
           decoration: InputDecoration(
             hintText: widget.hint,
             helperText: widget.helperText,
             helperMaxLines: 2,
+            errorText: widget.errorText,
+            errorMaxLines: 2,
+            suffixText: widget.suffixText,
             suffixIcon: widget.isPassword
                 ? IconButton(
                     tooltip: _obscured ? 'Mostrar senha' : 'Ocultar senha',
