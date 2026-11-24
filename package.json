@@ -4,6 +4,9 @@
   "description": "GotaGo Water Tracking API",
   "main": "src/server.ts",
   "type": "module",
+  "prisma": {
+    "seed": "tsx --env-file=.env prisma/seed.ts"
+  },
   "scripts": {
     "dev": "tsx watch --env-file=.env src/server.ts",
     "build": "tsc"
