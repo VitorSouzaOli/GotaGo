@@ -7,6 +7,7 @@ import { waterLogRoutes } from "./routes/water-logs-route.js";
 import { leagueRoutes } from "./routes/league-route.js";
 import { achievementRoutes } from "./routes/achieviments-route.js";
 import { errorHandler } from "./lib/error-handler.js";
+import { startResetStreaksJob } from "./jobs/reset-streaks-job.js";
 
 const app = Fastify({
   logger: true,
@@ -48,6 +49,7 @@ app.setErrorHandler(errorHandler);
 const start = async () => {
   try {
     await app.listen({ port: 3333, host: "0.0.0.0" });
+    startResetStreaksJob(app.log);
     console.log("🚀 HTTP Server running on http://localhost:3333");
   } catch (err) {
     app.log.error(err);
