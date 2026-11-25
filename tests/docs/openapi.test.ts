@@ -58,7 +58,14 @@ describe("documentação OpenAPI (docs/openapi.yaml)", () => {
   });
 
   it("não documenta rotas que não existem", () => {
-    const extra = [...documented()].filter((op) => !registered.has(op));
+    // hasRoute também enxerga rotas registradas antes do hook (ex.: /health)
+    const extra = [...documented()].filter((op) => {
+      const [method, path] = op.split(" ");
+      return !app.hasRoute({
+        method: method as "GET",
+        url: path.replace(/\{(\w+)\}/g, ":$1"),
+      });
+    });
 
     expect(extra).toEqual([]);
   });

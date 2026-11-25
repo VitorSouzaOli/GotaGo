@@ -139,6 +139,25 @@ demo**, com dados falsos e sem chamar a API. Para celular físico, veja o
 
 ## Rotas da API
 
+### Documentação interativa (OpenAPI / Swagger)
+
+Com a API rodando, abra **http://localhost:3333/docs**. Lá estão todas as rotas,
+com os campos de entrada, as respostas, os erros e exemplos, e dá para testar
+cada uma pelo navegador:
+
+1. Em `POST /sessions`, clique em **Try it out** e entre (ex.: `teste@gotago.dev`
+   / `123456`, do seed).
+2. Copie o `token` da resposta, clique em **Authorize** e cole.
+3. As outras rotas passam a enviar o token.
+
+A especificação fica em [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.0) e
+também é servida em JSON em `/docs/json`, para importar no Postman, Insomnia ou
+gerar clientes. **Ao criar, remover ou mudar uma rota, atualize esse arquivo**: o
+teste `tests/docs/openapi.test.ts` falha se alguma rota da API não estiver
+documentada (ou se a documentação citar uma rota que não existe).
+
+### Resumo
+
 Fora as marcadas como públicas, todas exigem `Authorization: Bearer <token>`.
 Erros respondem `{ "error": "..." }`; dados inválidos incluem a lista `issues`.
 

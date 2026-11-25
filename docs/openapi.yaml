@@ -862,7 +862,7 @@ components:
         createdAt: { type: string, format: date-time }
 
     LeagueName: { type: string, minLength: 3, maxLength: 50, example: Time do gole }
-    LeagueDescription: { type: string, maxLength: 200, example: Uma rotina saudável, juntos. }
+    LeagueDescription: { type: string, maxLength: 200, example: "Uma rotina saudável, juntos." }
     League:
       type: object
       properties:
@@ -925,7 +925,7 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
           example: { error: Apenas o administrador da liga pode fazer isso. }
     UserNotFound:
-      description: Usuário não encontrado (ex.: conta excluída com token antigo)
+      description: "Usuário não encontrado (ex.: conta excluída com token antigo)"
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
