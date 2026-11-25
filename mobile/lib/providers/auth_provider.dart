@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -39,16 +40,40 @@ class AuthProvider extends ChangeNotifier {
   Future<void> checkAuthStatus() async {
     _user = await _apiService.getUser();
 
-    // Sessão salva no modo demo não existe na API real: pede login de novo
-    if (_user?.id == ApiService.mockUserId && !ApiService.useMock) {
-      await _apiService.clearStorage();
-      _user = null;
+    // Na API real, uma sessão do modo demo ou sem token não serve: pede login de novo
+    if (_user != null && !ApiService.useMock) {
+      final token = await _apiService.getToken();
+      if (_user!.id == ApiService.mockUserId || token == null) {
+        await _apiService.clearStorage();
+        _user = null;
+      }
     }
 
     _status = _user != null
         ? AuthStatus.authenticated
         : AuthStatus.unauthenticated;
     notifyListeners();
+
+    // Atualiza meta e sequência em segundo plano, sem atrasar a abertura
+    unawaited(refreshUser());
+  }
+
+  // Busca os dados atuais do utilizador (GET /users/me). Na demo não há o que buscar.
+  Future<void> refreshUser() async {
+    final current = _user;
+    if (current == null || ApiService.useMock) return;
+
+    try {
+      final response = await _apiService.client.get('/users/me');
+      final fresh = UserModel.fromJson(response.data['user']);
+      // A pessoa pode ter saído da conta enquanto a resposta chegava
+      if (_user?.id != fresh.id) return;
+      _user = fresh;
+      await _apiService.saveUser(fresh);
+      notifyListeners();
+    } catch (_) {
+      // Sem conexão: continua com os dados guardados no aparelho
+    }
   }
 
   // Login via POST /sessions
@@ -64,8 +89,8 @@ class AuthProvider extends ChangeNotifier {
         },
       );
 
-      // Backend devolve { "user": { "id": "...", ... } }
-      await _authenticate(UserModel.fromJson(response.data['user']));
+      // Backend devolve { "token": "...", "user": { "id": "...", ... } }
+      await _authenticate(response.data);
       return true;
     } catch (e) {
       _fail(
@@ -122,7 +147,7 @@ class AuthProvider extends ChangeNotifier {
         response = await createUser('$baseUsername$suffix');
       }
 
-      await _authenticate(UserModel.fromJson(response.data['user']));
+      await _authenticate(response.data);
       return true;
     } catch (e) {
       _fail(
@@ -140,25 +165,22 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Edição de perfil e meta via PATCH /users/:id. Sem a rota no backend,
-  // a alteração fica salva só neste aparelho.
+  // Edição de perfil e meta via PATCH /users/:id
   Future<bool> updateProfile({String? name, double? weight, int? dailyGoal}) {
     return _runAccountAction(() async {
       final current = _user!;
-      try {
-        await _apiService.client.patch(
-          '/users/${current.id}',
-          data: {'name': ?name, 'weight': ?weight, 'dailyGoal': ?dailyGoal},
-        );
-      } catch (e) {
-        if (!isMissingRoute(e)) rethrow;
-      }
+      await _apiService.client.patch(
+        '/users/${current.id}',
+        data: {'name': ?name, 'weight': ?weight, 'dailyGoal': ?dailyGoal},
+      );
       _user = current.copyWith(
         name: name,
         weight: weight,
         dailyGoal: dailyGoal,
       );
       await _apiService.saveUser(_user!);
+      // A nova meta pode mudar a sequência calculada pelo servidor
+      await refreshUser();
     });
   }
 
@@ -201,15 +223,23 @@ class AuthProvider extends ChangeNotifier {
     return ok;
   }
 
-  // O backend incrementou a streak ao bater a meta: espelha localmente
+  // Bateu a meta e o servidor não informou a sequência (demo): soma um dia
   Future<void> incrementStreak() async {
     final current = _user;
     if (current == null) return;
 
     final newStreak = current.currentStreak + 1;
+    await applyStreaks(newStreak, max(newStreak, current.maxStreak));
+  }
+
+  // Espelha a sequência calculada pelo servidor
+  Future<void> applyStreaks(int currentStreak, int maxStreak) async {
+    final current = _user;
+    if (current == null) return;
+
     _user = current.copyWith(
-      currentStreak: newStreak,
-      maxStreak: max(newStreak, current.maxStreak),
+      currentStreak: currentStreak,
+      maxStreak: maxStreak,
     );
     await _apiService.saveUser(_user!);
     notifyListeners();
@@ -269,7 +299,11 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _authenticate(UserModel user) async {
+  // Resposta de login ou cadastro: { "token": "...", "user": { ... } }
+  Future<void> _authenticate(dynamic data) async {
+    final user = UserModel.fromJson(data['user']);
+    final token = data['token'];
+    if (token is String) await _apiService.saveToken(token);
     _user = user;
     await _apiService.saveUser(user);
     _status = AuthStatus.authenticated;

@@ -48,7 +48,13 @@ Future<void> registerWater(
     return;
   }
 
-  if (result.streakUpdated) await auth.incrementStreak();
+  final streak = result.currentStreak;
+  final best = result.maxStreak;
+  if (streak != null && best != null) {
+    await auth.applyStreaks(streak, best);
+  } else if (result.streakUpdated) {
+    await auth.incrementStreak();
+  }
   if (result.newAchievements.isNotEmpty) await achievements.load(user.id);
   if (!context.mounted) return;
 
@@ -394,13 +400,16 @@ Future<bool> deleteLogWithConfirmation(
   WaterLogModel log,
 ) async {
   final water = context.read<WaterProvider>();
-  final user = context.read<AuthProvider>().user;
+  final auth = context.read<AuthProvider>();
+  final user = auth.user;
   if (user == null) return false;
 
   final confirmed = await confirmDeleteLog(context, log, water.totalToday);
   if (!confirmed || !context.mounted) return false;
 
   final ok = await water.deleteLog(user.id, log);
+  // Excluir pode desfazer a meta do dia e a sequência
+  if (ok) await auth.refreshUser();
   if (!context.mounted) return ok;
   showAppMessage(
     context,
@@ -471,7 +480,9 @@ class _EditLogScreenState extends State<EditLogScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final water = context.read<WaterProvider>();
-    final user = context.read<AuthProvider>().user;
+    final auth = context.read<AuthProvider>();
+    final achievements = context.read<AchievementProvider>();
+    final user = auth.user;
     if (user == null) return;
 
     setState(() => _saving = true);
@@ -481,14 +492,22 @@ class _EditLogScreenState extends State<EditLogScreen> {
       amount: _amount,
       createdAt: _createdAt,
     );
+    var unlocked = <String>[];
+    if (ok) {
+      await auth.refreshUser();
+      // A correção pode ter completado uma sequência
+      unlocked = await achievements.reload(user.id);
+    }
     if (!mounted) return;
     setState(() => _saving = false);
 
-    if (ok) {
+    if (!ok) {
+      showAppMessage(context, water.errorMessage ?? 'Não foi possível salvar.');
+    } else if (unlocked.isNotEmpty) {
+      replacePage(context, AchievementUnlockedScreen(name: unlocked.last));
+    } else {
       Navigator.pop(context);
       showAppMessage(context, 'Registro atualizado.');
-    } else {
-      showAppMessage(context, water.errorMessage ?? 'Não foi possível salvar.');
     }
   }
 

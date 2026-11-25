@@ -1,39 +1,16 @@
 import { PrismaClient } from "@prisma/client";
-import { hash } from "bcryptjs";
+import { ACHIEVEMENTS } from "../src/utils/achievements-catalog.js";
+import { hashPassword } from "../src/lib/password.js";
 
 const prisma = new PrismaClient();
 
-// As mesmas conquistas que o utils/check-achieviments.ts desbloqueia
-const achievements = [
-  {
-    code: "FIRST_DROP",
-    name: "Primeira Gota",
-    description: "Registaste o teu primeiro consumo de água no GotaGo!",
-  },
-  {
-    code: "STREAK_3_DAYS",
-    name: "3 Dias Hidratado",
-    description: "Atingiste a meta diária por 3 dias consecutivos!",
-  },
-  {
-    code: "STREAK_7_DAYS",
-    name: "Semana Perfeita",
-    description: "Atingiste a meta diária por 7 dias consecutivos!",
-  },
-  {
-    code: "STREAK_30_DAYS",
-    name: "Mestre da Hidratação",
-    description: "Mantiveste a tua meta por 30 dias seguidos!",
-  },
-];
-
 async function main() {
   // upsert = "cria se não existir, senão atualiza": rodar o seed várias vezes não duplica nada
-  for (const achievement of achievements) {
+  for (const { code, name, description } of ACHIEVEMENTS) {
     await prisma.achievement.upsert({
-      where: { code: achievement.code },
-      update: { name: achievement.name, description: achievement.description },
-      create: achievement,
+      where: { code },
+      update: { name, description },
+      create: { code, name, description },
     });
   }
 
@@ -45,7 +22,7 @@ async function main() {
       name: "Usuário Teste",
       username: "teste",
       email: "teste@gotago.dev",
-      passwordHash: await hash("123456", 6),
+      passwordHash: await hashPassword("123456"),
       weight: 70,
       dailyGoal: 2450,
     },

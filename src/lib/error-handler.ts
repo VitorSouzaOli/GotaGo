@@ -1,5 +1,6 @@
 import { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 import { ZodError } from "zod";
+import { isUniqueViolation } from "./prisma-errors.js";
 
 // Tratador global de erros: qualquer erro não tratado dentro de uma rota cai aqui.
 export function errorHandler(
@@ -16,6 +17,18 @@ export function errorHandler(
         message: issue.message,
       })),
     });
+  }
+
+  // Corrida entre duas requisições: o banco recusou um valor que já existe
+  if (isUniqueViolation(error)) {
+    const target = String(error.meta?.target ?? "");
+    if (target.includes("email")) {
+      return reply.status(400).send({ error: "Email already exists" });
+    }
+    if (target.includes("username")) {
+      return reply.status(400).send({ error: "Username already exists" });
+    }
+    return reply.status(409).send({ error: "Este registro já existe." });
   }
 
   // Erros HTTP do próprio Fastify (ex.: JSON malformado) já trazem o status correto

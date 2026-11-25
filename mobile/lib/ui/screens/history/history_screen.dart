@@ -376,7 +376,7 @@ class _TodayCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: done ? AppColors.primaryDark : AppColors.tealDark,
+                      color: done ? AppColors.onLime : AppColors.tealDark,
                     ),
                   ),
                 ),

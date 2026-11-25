@@ -47,7 +47,14 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  void _goTo(int index) => _shell.goTo(index);
+  void _goTo(int index) {
+    _shell.goTo(index);
+    // O ranking muda com os registros de todos: atualiza ao abrir a aba Ligas
+    final user = context.read<AuthProvider>().user;
+    if (index == ShellTab.leagues && user != null) {
+      context.read<LeagueProvider>().load(user.id, force: true);
+    }
+  }
 
   void _openProfilePage(ProfilePage page) => _shell.openProfilePage(page);
 

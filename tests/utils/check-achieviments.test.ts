@@ -17,8 +17,8 @@ function makeUser(overrides: {
 } = {}) {
   return {
     id: USER_ID,
-    currentStreak: overrides.streak ?? 0,
-    waterLogs: Array.from({ length: overrides.logs ?? 0 }, (_, i) => ({ id: `log-${i}` })),
+    maxStreak: overrides.streak ?? 0,
+    _count: { waterLogs: overrides.logs ?? 0 },
     achievements: (overrides.unlocked ?? []).map((code) => ({ achievement: { code } })),
   };
 }
@@ -29,7 +29,7 @@ beforeEach(() => {
     id: `ach-${where.code}`,
     ...create,
   }));
-  prismaMock.userAchievement.create.mockResolvedValue({});
+  prismaMock.userAchievement.createMany.mockResolvedValue({ count: 1 });
 });
 
 describe("checkAndUnlockAchievements", () => {
@@ -39,14 +39,14 @@ describe("checkAndUnlockAchievements", () => {
 
       await expect(checkAndUnlockAchievements(USER_ID)).resolves.toEqual([]);
       expect(prismaMock.achievement.upsert).not.toHaveBeenCalled();
-      expect(prismaMock.userAchievement.create).not.toHaveBeenCalled();
+      expect(prismaMock.userAchievement.createMany).not.toHaveBeenCalled();
     });
 
     it("devolve vazio para usuário sem registros e sem streak", async () => {
       prismaMock.user.findUnique.mockResolvedValue(makeUser());
 
       await expect(checkAndUnlockAchievements(USER_ID)).resolves.toEqual([]);
-      expect(prismaMock.userAchievement.create).not.toHaveBeenCalled();
+      expect(prismaMock.userAchievement.createMany).not.toHaveBeenCalled();
     });
 
     it("não desbloqueia streak com apenas 2 dias", async () => {
@@ -66,7 +66,7 @@ describe("checkAndUnlockAchievements", () => {
 
       await expect(checkAndUnlockAchievements(USER_ID)).resolves.toEqual([]);
       expect(prismaMock.achievement.upsert).not.toHaveBeenCalled();
-      expect(prismaMock.userAchievement.create).not.toHaveBeenCalled();
+      expect(prismaMock.userAchievement.createMany).not.toHaveBeenCalled();
     });
   });
 
@@ -91,8 +91,9 @@ describe("checkAndUnlockAchievements", () => {
           description: "Registaste o teu primeiro consumo de água no GotaGo!",
         },
       });
-      expect(prismaMock.userAchievement.create).toHaveBeenCalledWith({
-        data: { userId: USER_ID, achievementId: "ach-FIRST_DROP" },
+      expect(prismaMock.userAchievement.createMany).toHaveBeenCalledWith({
+        data: [{ userId: USER_ID, achievementId: "ach-FIRST_DROP" }],
+        skipDuplicates: true,
       });
     });
 
@@ -121,7 +122,7 @@ describe("checkAndUnlockAchievements", () => {
       prismaMock.user.findUnique.mockResolvedValue(makeUser({ logs: 1, streak }));
 
       await expect(checkAndUnlockAchievements(USER_ID)).resolves.toEqual(expected);
-      expect(prismaMock.userAchievement.create).toHaveBeenCalledTimes(expected.length);
+      expect(prismaMock.userAchievement.createMany).toHaveBeenCalledTimes(expected.length);
     });
 
     it("usa o código certo de cada conquista", async () => {
@@ -144,7 +145,7 @@ describe("checkAndUnlockAchievements", () => {
         "Primeira Gota",
         "Semana Perfeita",
       ]);
-      expect(prismaMock.userAchievement.create).toHaveBeenCalledTimes(2);
+      expect(prismaMock.userAchievement.createMany).toHaveBeenCalledTimes(2);
     });
 
     it("não desbloqueia de novo quando só a primeira já existia", async () => {
@@ -157,18 +158,21 @@ describe("checkAndUnlockAchievements", () => {
   });
 
   describe("consulta e falhas", () => {
-    it("busca o usuário com registros e conquistas já desbloqueadas", async () => {
+    it("conta os registros em vez de carregar todos", async () => {
       prismaMock.user.findUnique.mockResolvedValue(makeUser());
 
       await checkAndUnlockAchievements(USER_ID);
 
-      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
-        where: { id: USER_ID },
-        include: {
-          waterLogs: true,
-          achievements: { include: { achievement: true } },
-        },
+      expect(prismaMock.user.findUnique.mock.calls[0][0].select._count).toEqual({
+        select: { waterLogs: true },
       });
+    });
+
+    it("não anuncia a conquista que outra requisição simultânea já gravou", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(makeUser({ logs: 1 }));
+      prismaMock.userAchievement.createMany.mockResolvedValue({ count: 0 });
+
+      await expect(checkAndUnlockAchievements(USER_ID)).resolves.toEqual([]);
     });
 
     it("propaga o erro quando o banco falha ao criar a conquista", async () => {
@@ -180,7 +184,7 @@ describe("checkAndUnlockAchievements", () => {
 
     it("propaga o erro quando o banco falha ao registrar o desbloqueio", async () => {
       prismaMock.user.findUnique.mockResolvedValue(makeUser({ logs: 1 }));
-      prismaMock.userAchievement.create.mockRejectedValue(new Error("violação de unicidade"));
+      prismaMock.userAchievement.createMany.mockRejectedValue(new Error("violação de unicidade"));
 
       await expect(checkAndUnlockAchievements(USER_ID)).rejects.toThrow("violação de unicidade");
     });

@@ -284,6 +284,9 @@ describe("GET /leagues/:id/leaderboard (ranking)", () => {
   const getLeaderboard = (id: string = LEAGUE_ID, headers = authHeader(app)) =>
     send("GET", `/leagues/${id}/leaderboard`, undefined, headers);
 
+  // quem consulta (o dono do token) precisa estar entre os membros
+  const me = () => member(USER_ID, 0);
+
   it("responde 401 sem token", async () => {
     const res = await getLeaderboard(LEAGUE_ID, {} as never);
 
@@ -309,27 +312,27 @@ describe("GET /leagues/:id/leaderboard (ranking)", () => {
 
   it("ordena do maior streak para o menor", async () => {
     prismaMock.league.findUnique.mockResolvedValue(
-      leagueWith(member("ana", 2), member("bia", 9), member("caio", 5)),
+      leagueWith(member("ana", 2), member("bia", 9), member("caio", 5), me()),
     );
 
     const res = await getLeaderboard();
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().leaderboard.map((u: { id: string }) => u.id)).toEqual(["bia", "caio", "ana"]);
+    expect(res.json().leaderboard.map((u: { id: string }) => u.id)).toEqual(["bia", "caio", "ana", USER_ID]);
   });
 
   it("mantém a ordem de entrada em caso de empate no streak", async () => {
     prismaMock.league.findUnique.mockResolvedValue(
-      leagueWith(member("ana", 3), member("bia", 3), member("caio", 3)),
+      leagueWith(member("ana", 3), member("bia", 3), member("caio", 3), me()),
     );
 
     const res = await getLeaderboard();
 
-    expect(res.json().leaderboard.map((u: { id: string }) => u.id)).toEqual(["ana", "bia", "caio"]);
+    expect(res.json().leaderboard.map((u: { id: string }) => u.id)).toEqual(["ana", "bia", "caio", USER_ID]);
   });
 
-  it("devolve só os dados públicos da liga (sem dono nem membros crus)", async () => {
-    prismaMock.league.findUnique.mockResolvedValue(leagueWith(member("ana", 1)));
+  it("devolve os dados da liga, com o dono e sem os membros crus", async () => {
+    prismaMock.league.findUnique.mockResolvedValue(leagueWith(me()));
 
     const res = await getLeaderboard();
 
@@ -338,15 +341,17 @@ describe("GET /leagues/:id/leaderboard (ranking)", () => {
       name: "Liga dos Amigos",
       description: "desc",
       code: "GOTA-AB12",
+      ownerId: USER_ID,
     });
   });
 
-  it("devolve ranking vazio para liga sem membros", async () => {
-    prismaMock.league.findUnique.mockResolvedValue(leagueWith());
+  it("responde 403 para quem não participa e não revela o código", async () => {
+    prismaMock.league.findUnique.mockResolvedValue(leagueWith(member("ana", 1)));
 
     const res = await getLeaderboard();
 
-    expect(res.json().leaderboard).toEqual([]);
+    expect(res.statusCode).toBe(403);
+    expect(res.body).not.toContain("GOTA-AB12");
   });
 
   it("pede ao banco somente campos seguros do usuário (sem e-mail nem senha)", async () => {

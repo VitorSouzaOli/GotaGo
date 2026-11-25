@@ -65,9 +65,6 @@ flutter:
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware.
 
-  assets:
-    - assets/images/
-
   # Plus Jakarta Sans (licença SIL OFL), embutida para funcionar offline
   # e para que qualquer fontWeight use o arquivo certo
   fonts:

@@ -11,6 +11,7 @@ import 'providers/water_provider.dart';
 import 'services/api_service.dart';
 import 'ui/navigation/shell_controller.dart';
 import 'ui/screens/splash/splash_screen.dart';
+import 'ui/screens/welcome/welcome_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,30 +38,59 @@ class MyApp extends StatelessWidget {
           create: (_) => SettingsProvider(apiService)..load(),
         ),
       ],
-      child: const _GotaGoApp(),
+      child: _GotaGoApp(apiService),
     );
   }
 }
 
 // Aplica o tema escolhido em Preferências → Aparência (claro, escuro ou sistema)
 class _GotaGoApp extends StatefulWidget {
-  const _GotaGoApp();
+  final ApiService apiService;
+
+  const _GotaGoApp(this.apiService);
 
   @override
   State<_GotaGoApp> createState() => _GotaGoAppState();
 }
 
 class _GotaGoAppState extends State<_GotaGoApp> with WidgetsBindingObserver {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  bool _expiringSession = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.apiService.onSessionExpired = _handleSessionExpired;
   }
 
   @override
   void dispose() {
+    widget.apiService.onSessionExpired = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  // Token expirado: sai da conta e volta para a tela de boas-vindas
+  Future<void> _handleSessionExpired() async {
+    final auth = context.read<AuthProvider>();
+    // Várias requisições podem falhar juntas: trata só a primeira
+    if (_expiringSession || !auth.isAuthenticated) return;
+    _expiringSession = true;
+
+    await auth.logout();
+    if (mounted) {
+      context.read<WaterProvider>().clear();
+      context.read<AchievementProvider>().clear();
+      context.read<LeagueProvider>().clear();
+      context.read<SettingsProvider>().clear();
+      context.read<ShellController>().reset();
+      _navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+        (_) => false,
+      );
+    }
+    _expiringSession = false;
   }
 
   // Aparelho trocou entre claro/escuro (vale para a opção "Sistema")
@@ -92,6 +122,7 @@ class _GotaGoAppState extends State<_GotaGoApp> with WidgetsBindingObserver {
     }
 
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'GotaGo',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.current,

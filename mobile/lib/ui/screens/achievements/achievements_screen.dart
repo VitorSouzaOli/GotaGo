@@ -370,7 +370,7 @@ class _Medal extends StatelessWidget {
                 unlocked ? Icons.check_rounded : Icons.lock_outline_rounded,
                 size: 12,
                 color: unlocked
-                    ? AppColors.limeAccent
+                    ? AppColors.onPrimaryAccent
                     : AppColors.textSecondary,
               ),
             ),

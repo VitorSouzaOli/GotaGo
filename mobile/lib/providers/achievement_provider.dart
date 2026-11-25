@@ -37,6 +37,25 @@ class AchievementProvider extends ChangeNotifier {
     }
   }
 
+  // Recarrega a lista e devolve os nomes das conquistas desbloqueadas agora
+  // (ex.: ao corrigir um registro ou baixar a meta)
+  Future<List<String>> reload(String userId) async {
+    final loadedBefore = _achievements.isNotEmpty;
+    final unlockedBefore = {
+      for (final a in _achievements)
+        if (a.isUnlocked) a.code,
+    };
+
+    await load(userId);
+
+    // Sem a lista anterior não dá para saber o que é novidade
+    if (!loadedBefore) return [];
+    return [
+      for (final a in _achievements)
+        if (a.isUnlocked && !unlockedBefore.contains(a.code)) a.name,
+    ];
+  }
+
   // Limpa o estado ao fazer logout
   void clear() {
     _achievements = [];

@@ -7,6 +7,7 @@ import '../../../models/league_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/league_provider.dart';
 import '../../../providers/water_provider.dart';
+import '../../../services/api_service.dart';
 import '../../navigation/shell_controller.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/flow_page.dart';
@@ -243,7 +244,7 @@ class _JoinLeagueScreenState extends State<JoinLeagueScreen> {
           key: _formKey,
           child: AppTextField(
             label: 'Código de convite',
-            hint: 'Ex.: RITMO6',
+            hint: ApiService.useMock ? 'Ex.: RITMO6' : 'Ex.: GOTA-AB12',
             controller: _controller,
             textCapitalization: TextCapitalization.characters,
             textInputAction: TextInputAction.done,
@@ -450,7 +451,7 @@ class InviteScreen extends StatelessWidget {
 Future<void> leaveLeague(BuildContext context, LeagueModel league) async {
   final confirmed = await showConfirmDialog(
     context,
-    title: 'Sair do ${league.name}?',
+    title: 'Sair da liga ${league.name}?',
     body:
         'Você deixará de aparecer na classificação desta liga. Seu histórico '
         'pessoal e suas outras ligas não serão apagados.',

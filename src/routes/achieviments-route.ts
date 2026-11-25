@@ -1,49 +1,46 @@
 import { FastifyInstance } from "fastify";
-import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middlewares/authenticate.js";
+import { authorizeSelf } from "../middlewares/authorize-self.js";
 
 export async function achievementRoutes(app: FastifyInstance) {
   // Obter todas as conquistas do utilizador (desbloqueadas e pendentes)
-  app.get("/users/:userId/achievements", { onRequest: [authenticate] }, async (request, reply) => {
-    const getAchievementsParamsSchema = z.object({
-      userId: z.uuid("ID de utilizador inválido"),
-    });
+  app.get(
+    "/users/:userId/achievements",
+    { onRequest: [authenticate, authorizeSelf] },
+    async (request, reply) => {
+      const userId = request.user.sub;
 
-    const { userId } = getAchievementsParamsSchema.parse(request.params);
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+      });
 
-    // Cada usuário só pode ver as suas próprias conquistas
-    if (userId !== request.user.sub) {
-      return reply.status(403).send({ error: "Acesso negado." });
-    }
+      if (!user) {
+        return reply.status(404).send({ error: "Utilizador não encontrado." });
+      }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+      const [allAchievements, userAchievements] = await Promise.all([
+        prisma.achievement.findMany(),
+        prisma.userAchievement.findMany({
+          where: { userId },
+          select: { achievementId: true, unlockedAt: true },
+        }),
+      ]);
 
-    if (!user) {
-      return reply.status(404).send({ error: "Utilizador não encontrado." });
-    }
+      const unlockedMap = new Map(
+        userAchievements.map((ua) => [ua.achievementId, ua.unlockedAt]),
+      );
 
-    const allAchievements = await prisma.achievement.findMany();
-    const userAchievements = await prisma.userAchievement.findMany({
-      where: { userId },
-      select: { achievementId: true, unlockedAt: true },
-    });
+      const result = allAchievements.map((achievement) => ({
+        id: achievement.id,
+        code: achievement.code,
+        name: achievement.name,
+        description: achievement.description,
+        isUnlocked: unlockedMap.has(achievement.id),
+        unlockedAt: unlockedMap.get(achievement.id) || null,
+      }));
 
-    const unlockedMap = new Map(
-      userAchievements.map((ua) => [ua.achievementId, ua.unlockedAt]),
-    );
-
-    const result = allAchievements.map((achievement) => ({
-      id: achievement.id,
-      code: achievement.code,
-      name: achievement.name,
-      description: achievement.description,
-      isUnlocked: unlockedMap.has(achievement.id),
-      unlockedAt: unlockedMap.get(achievement.id) || null,
-    }));
-
-    return reply.status(200).send({ achievements: result });
-  });
+      return reply.status(200).send({ achievements: result });
+    },
+  );
 }

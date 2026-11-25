@@ -11,8 +11,22 @@ class ApiService {
   final Dio _dio = Dio();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
-  // URL para o Emulador Android (porta 3333)
-  static const String _baseUrl = 'http://10.0.2.2:3333';
+  // Endereço da API. Para trocar (celular físico, servidor publicado):
+  // flutter run --dart-define=API_URL=http://192.168.0.10:3333
+  static const String _apiUrl = String.fromEnvironment('API_URL');
+
+  // Sem a flag: no emulador Android o PC é o 10.0.2.2; no resto, localhost
+  static String get _baseUrl {
+    if (_apiUrl.isNotEmpty) return _apiUrl;
+    return !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+        ? 'http://10.0.2.2:3333'
+        : 'http://localhost:3333';
+  }
+
+  static const _tokenKey = 'jwt_token';
+
+  // Chamado quando o servidor recusa o token (expirado ou conta removida)
+  VoidCallback? onSessionExpired;
 
   // Modo demo (dados falsos, sem backend).
   // Sem a flag: ligado em debug (`flutter run`) e desligado em release.
@@ -34,15 +48,22 @@ class ApiService {
       return;
     }
 
-    // Preparado para injetar o JWT futuramente
+    // Envia o JWT em cada requisição e avisa quando ele deixa de valer
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await _storage.read(key: 'jwt_token');
+          final token = await getToken();
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }
           return handler.next(options);
+        },
+        onError: (error, handler) {
+          if (error.response?.statusCode == 401 &&
+              error.requestOptions.headers.containsKey('Authorization')) {
+            onSessionExpired?.call();
+          }
+          return handler.next(error);
         },
       ),
     );
@@ -50,8 +71,11 @@ class ApiService {
 
   Dio get client => _dio;
 
+  Future<void> saveToken(String token) => writeValue(_tokenKey, token);
+
+  Future<String?> getToken() => readValue(_tokenKey);
+
   // Guarda o utilizador inteiro para restaurar a sessão ao reabrir o app
-  // (enquanto não usamos JWT nem temos GET /me no backend)
   Future<void> saveUser(UserModel user) async {
     await _storage.write(key: 'user', value: jsonEncode(user.toJson()));
   }

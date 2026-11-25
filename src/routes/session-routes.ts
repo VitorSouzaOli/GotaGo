@@ -1,51 +1,45 @@
 import { FastifyInstance } from "fastify";
-import { compare } from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { hashPassword, verifyPassword } from "../lib/password.js";
+import { serializeUser } from "../lib/serialize.js";
+import { signSessionToken } from "../lib/session-token.js";
+import { rateLimit } from "../middlewares/rate-limit.js";
 
 export async function sessionRoutes(app: FastifyInstance) {
-  app.post("/sessions", async (request, reply) => {
+  // Comparado quando o utilizador não existe, para o tempo de resposta não revelar quem tem conta
+  const dummyHash = await hashPassword("utilizador-inexistente");
+
+  app.post("/sessions", { onRequest: [rateLimit(10)] }, async (request, reply) => {
     const sessionBodySchema = z.object({
-      login: z.string().min(1, "E-mail or username is required"),
+      login: z.string().trim().min(1, "E-mail or username is required"),
       password: z.string().min(1, "Password is required"),
     });
 
     const { login, password } = sessionBodySchema.parse(request.body);
+    const normalizedLogin = login.toLowerCase();
 
-    // Permite login por e-mail ou por username
+    // Permite login por e-mail ou por username, sem diferenciar maiúsculas
     const user = await prisma.user.findFirst({
       where: {
-        OR: [{ email: login }, { username: login.toLowerCase() }],
+        OR: [
+          { email: normalizedLogin },
+          { username: normalizedLogin },
+          // o e-mail exato cobre contas antigas que continuaram gravadas com maiúsculas
+          ...(normalizedLogin !== login ? [{ email: login }] : []),
+        ],
       },
     });
-
-    if (!user) {
-      return reply.status(400).send({ error: "Invalid credentials" });
-    }
 
     // Compara a senha enviada com o hash salvo no banco
-    const doesPasswordMatch = await compare(password, user.passwordHash);
+    const doesPasswordMatch = await verifyPassword(password, user?.passwordHash ?? dummyHash);
 
-    if (!doesPasswordMatch) {
+    if (!user || !doesPasswordMatch) {
       return reply.status(400).send({ error: "Invalid credentials" });
     }
 
-    // Gera o token: "sub" guarda o ID do usuário e ele expira em 7 dias
-    const token = await reply.jwtSign({ sub: user.id }, { expiresIn: "7d" });
+    const token = await signSessionToken(reply, user.id);
 
-    return reply.status(200).send({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        avatarUrl: user.avatarUrl,
-        weight: user.weight,
-        dailyGoal: user.dailyGoal,
-        currentStreak: user.currentStreak,
-        maxStreak: user.maxStreak,
-      },
-    });
+    return reply.status(200).send({ token, user: serializeUser(user) });
   });
 }

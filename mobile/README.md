@@ -21,16 +21,14 @@ Rode `flutter doctor` e verifique se aparece ✓ em **Flutter** e **Android tool
 
 ### 1. Suba o backend
 
-Na **raiz** do repositório:
+Siga o [README da raiz](../README.md) (banco, `.env`, migrações). Depois, na **raiz**:
 
 ```bash
-docker compose up -d   # Postgres
-npm install
 npm run dev            # API em http://localhost:3333
 ```
 
 Confira se a API respondeu abrindo `http://localhost:3333/health`. Deve aparecer
-`{"status":"ok"}`.
+`{"status":"ok","service":"GotaGo API"}`.
 
 ### 2. Rode o app
 
@@ -82,17 +80,13 @@ conquistas, e aparece uma faixa **DEMO** no canto da tela.
 
 ### Endereço da API
 
-O endereço fica em [`lib/services/api_service.dart`](lib/services/api_service.dart):
+O app escolhe o endereço sozinho e aceita a flag `API_URL`:
 
-```dart
-static const String _baseUrl = 'http://10.0.2.2:3333';
-```
-
-| Onde o app roda | Valor de `_baseUrl` |
+| Onde o app roda | Endereço |
 |---|---|
-| Emulador Android | `http://10.0.2.2:3333` (padrão; é o `localhost` do PC visto de dentro do emulador) |
-| Celular físico no mesmo Wi-Fi | `http://<IP do PC>:3333` (veja o IP com `ipconfig` ou `ip a`) |
-| Simulador iOS / Web | `http://localhost:3333` |
+| Emulador Android | `http://10.0.2.2:3333` (automático; é o `localhost` do PC visto do emulador) |
+| Navegador, Windows desktop ou simulador iOS | `http://localhost:3333` (automático) |
+| Celular físico no mesmo Wi-Fi | `--dart-define=API_URL=http://<IP do PC>:3333` (veja o IP com `ipconfig`) |
 
 Num celular físico também é preciso liberar a porta 3333 no firewall do PC.
 
@@ -132,67 +126,30 @@ Ligas, Histórico e Perfil).
 
 ## Integração com o backend
 
-### Rotas que o app usa hoje
-
-| Rota | Onde | Body enviado | O que o app lê da resposta |
-|---|---|---|---|
-| `POST /users` | Cadastro (tela "Vamos encontrar seu ritmo") | `name`, `username`, `email`, `password`, `weightKg?`, `customDailyGoal?` | `user` |
-| `POST /sessions` | Login | `login` (e-mail ou username), `password` | `user` |
-| `POST /water-logs` | Home: botões "+ ml" | `userId`, `amount` | `totalToday`, `dailyGoal`, `waterLog.createdAt`, `streakUpdated`, `newAchievements`, `warning` |
-| `GET /users/:userId/achievements` | Home e Perfil: conquistas | — | `achievements[]` com `code`, `name`, `isUnlocked`, `unlockedAt` |
-| `POST /leagues` | Ligas: "Criar liga" | `name`, `description?`, `ownerId` | `league.id` |
-| `POST /leagues/join` | Ligas: "Entrar com código" | `userId`, `code` | `membership.leagueId` |
-| `GET /leagues/:id/leaderboard` | Ligas e Home: ranking | — | `league` (`id`, `name`, `code`) e `leaderboard[]` (`id`, `name`, `currentStreak`) |
-| `GET /users/:userId/leagues` | Ligas, Home e Perfil | — | `leagues[]` com `id` (**rota ainda não existe no backend**, ver abaixo) |
-| `GET /users/:userId/water-logs?days=30` | Home e Histórico | — | `waterLogs[]` com `amount`, `createdAt` (**rota ainda não existe no backend**, ver abaixo) |
-
-O objeto `user` é lido com os campos `id`, `name`, `username`, `email`,
-`avatarUrl`, `weight`, `dailyGoal`, `currentStreak` e `maxStreak`
-(ver [`lib/models/user_model.dart`](lib/models/user_model.dart)).
+As rotas estão documentadas no [README da raiz](../README.md#rotas-da-api). O login e o
+cadastro devolvem um token, que o app guarda no `FlutterSecureStorage` (chave
+`jwt_token`) e envia em `Authorization: Bearer`. Quando o servidor responde 401
+(token expirado), o app sai da conta e volta para as boas-vindas.
 
 **Mensagens de erro:** o app traduz alguns textos do campo `{ "error": "..." }`.
-Se você mudar esses textos no backend, atualize também o mapeamento no
-[`auth_provider.dart`](lib/providers/auth_provider.dart):
+Se você mudar esses textos no backend, atualize também o app:
 
 | Texto que o backend envia | Mensagem que o app mostra |
 |---|---|
 | `Invalid credentials` | Tela "Vamos tentar de novo?" (no login) / "A senha atual está incorreta." (alterar senha) |
 | `Email already exists` | Tela "Você já tem uma conta" |
 | `Username already exists` | O app tenta de novo com um sufixo numérico no username |
+| `Liga não encontrada com este código.` | "Nenhuma liga encontrada com esse código." |
+| `Já fazes parte desta liga.` | "Você já faz parte desta liga." |
 
-Qualquer outro erro aparece como uma mensagem genérica. Sem resposta do servidor, o
-app mostra "Não foi possível conectar ao servidor".
+### O que ainda é só do aparelho
 
-### O que o app ainda precisa do backend
-
-São soluções provisórias no app, cada uma esperando uma rota:
-
-| Necessidade | Situação atual no app | Rota sugerida |
-|---|---|---|
-| Histórico de registros (Home e aba Histórico) | O app **já chama** `GET /users/:userId/water-logs?days=30`. Enquanto a rota não existir, ela falha e o app usa os registros guardados **no aparelho**, ou seja, registros feitos em outro aparelho não aparecem | Criar a rota devolvendo `{ waterLogs: [{ id, amount, createdAt }] }` dos últimos `days` dias, como o [`MockApiInterceptor`](lib/services/mock_api_interceptor.dart) faz |
-| Ligas do usuário | O app **já chama** `GET /users/:userId/leagues`. Enquanto a rota não existir, usa os ids das ligas criadas ou em que entrou **por este aparelho** e busca o ranking de cada uma | Criar a rota devolvendo `{ leagues: [{ id, name, description, code }] }`, como o mock faz |
-| Dados atualizados do usuário | A sessão usa o `user` salvo no login; streak e meta podem ficar desatualizados | `GET /me` (com JWT) |
-| Autenticação | Sem token: o app envia `userId` no body. O `ApiService` já lê `jwt_token` do storage e envia `Authorization: Bearer` se ele existir | `POST /sessions` devolver `token` |
-| Editar meta e perfil | O app **já chama** `PATCH /users/:id` com `name`, `weight`, `dailyGoal`. Sem a rota, a mudança fica salva **só no aparelho** (e o próximo `POST /water-logs` devolve a meta antiga do servidor) | Criar `PATCH /users/:id` |
-| Corrigir e excluir registros | O app **já chama** `PATCH /water-logs/:id` (`amount`, `createdAt`) e `DELETE /water-logs/:id`. Sem as rotas, mostra "Esta função ainda não está disponível no servidor." | Criar as duas rotas |
-| Prévia da liga antes de entrar | O app **já chama** `GET /leagues/code/:code` → `{ league: { id, name, code, memberCount, ownerName } }`. Sem a rota, entra direto (pula "Esta é a sua equipe?") | Criar a rota |
-| Sair da liga e administrar | O app **já chama** `DELETE /leagues/:id/members/:userId` (sair/remover), `PATCH /leagues/:id` (`name`) e `POST /leagues/:id/code` (novo código). O leaderboard também deveria devolver `league.ownerId`, para o app saber quem administra | Criar as rotas e incluir `ownerId` |
-| Cadastro sem username | A tela não pede username. O app gera a partir do e-mail (`vitor@...` → `vitor`) | Tornar `username` opcional no `POST /users`, ou manter assim |
-| Recuperação de senha | O app **já chama** `POST /passwords/forgot` (`email`) e `POST /passwords/reset` (`token`, `password`) | Criar as rotas e o envio de e-mail com o link |
-| Login com Google, foto do perfil, anexos no suporte | Mostram "em breve" | — |
-| Lembretes, preferências e privacidade (Perfil → "Do seu jeito") | Salvos **só no aparelho** (`SettingsProvider`). O app ainda **não dispara notificações** de lembrete | Rota para salvar as preferências na conta, se quiserem sincronizar entre aparelhos; as notificações em si são do app (ex.: `flutter_local_notifications`) |
-| Suporte (solicitações e conversas) | Ficam guardadas no aparelho (`SettingsProvider`), e a tela avisa isso | Rota de suporte ou um canal externo (e-mail, chat) |
-| Alterar senha e excluir conta | O app **já chama** `PATCH /users/:id/password` (`currentPassword`, `newPassword`) e `DELETE /users/:id` | Criar as rotas |
-| Cópia dos dados, dispositivos conectados | Pedido de cópia fica registrado no aparelho; dispositivos mostra só a sessão atual | Exportação de dados e registro de sessões |
-| App rodando na web | O navegador bloqueia as chamadas | Registrar o `@fastify/cors` no `server.ts` |
-
-Todas essas rotas já são respondidas pelo modo demo, no formato esperado: o
-[`MockApiInterceptor`](lib/services/mock_api_interceptor.dart) serve de
-especificação.
-
-Quando o JWT existir: salve o token com a chave `jwt_token` no
-`FlutterSecureStorage`, que o interceptor do `ApiService` já está pronto. Depois
-remova o `userId` dos bodies.
+| Função | Situação |
+|---|---|
+| Login com Google, foto do perfil, anexos no suporte | Mostram "em breve" |
+| Lembretes, preferências e privacidade | Salvos no aparelho; o app ainda não dispara notificações |
+| Suporte e pedido de cópia dos dados | Ficam registrados no aparelho |
+| Recuperação de senha | O link abre uma página servida pela API. Sem provedor de e-mail, ele aparece no terminal do servidor |
 
 ## Tema claro e escuro
 
@@ -222,6 +179,6 @@ por `AppIcon`. Se isso acontecer, desfaça essa mudança com
 |---|---|
 | "Não foi possível conectar ao servidor" | Backend parado, `_baseUrl` errado pro dispositivo ou firewall bloqueando a porta 3333 |
 | "Não foi possível criar sua conta" / "Não foi possível entrar" | Erro no backend: veja o terminal do `npm run dev` |
-| Backend falha ao conectar no banco | Confira se o nome do banco no `DATABASE_URL` do `.env` bate com o `POSTGRES_DB` do `docker-compose.yml`, e rode `npx prisma migrate dev` |
+| Backend falha ao conectar no banco | Veja "Problemas comuns" no [README da raiz](../README.md#problemas-comuns) |
 | Tela vazia e log com "Another exception was thrown" | Role o log até o **primeiro** `EXCEPTION CAUGHT BY…`: é lá que está a causa |
 | Ícone antigo continua aparecendo | Desinstale o app do emulador e rode `flutter run` de novo |

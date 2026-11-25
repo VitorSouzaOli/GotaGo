@@ -33,6 +33,7 @@ class MockApiInterceptor extends Interceptor {
   final _logs = <Map<String, dynamic>>[];
   final _unlocked = <String, DateTime>{
     'FIRST_DROP': DateTime.now().subtract(const Duration(days: 20)),
+    'STREAK_3_DAYS': DateTime.now().subtract(const Duration(days: 4)),
   };
   final _random = Random();
   int _nextLogId = 1;
@@ -89,6 +90,12 @@ class MockApiInterceptor extends Interceptor {
       'Primeira Gota',
       'Registaste o teu primeiro consumo de água no GotaGo!',
       0,
+    ),
+    (
+      'STREAK_3_DAYS',
+      '3 Dias Hidratado',
+      'Atingiste a meta diária por 3 dias consecutivos!',
+      3,
     ),
     (
       'STREAK_7_DAYS',

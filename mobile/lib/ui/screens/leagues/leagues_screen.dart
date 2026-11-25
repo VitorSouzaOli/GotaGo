@@ -430,7 +430,7 @@ class _RankingCard extends StatelessWidget {
   }
 }
 
-// Top 3 do ranking; "Ver ranking completo" abre a classificação da liga
+// Top 3 do ranking; o botão abaixo abre a classificação da liga
 class _RankingList extends StatelessWidget {
   static const _collapsedCount = 3;
 
@@ -459,14 +459,18 @@ class _RankingList extends StatelessWidget {
             member: ranking[i],
             isMe: ranking[i].id == userId,
           ),
-        if (ranking.length > _collapsedCount)
-          Center(
-            child: TextButton(
-              onPressed: () =>
-                  pushPage(context, LeagueRankingScreen(leagueId: league.id)),
-              child: Text('Ver ranking completo (${ranking.length})'),
+        // Sempre visível: é nesta tela que se administra a liga ou sai dela
+        Center(
+          child: TextButton(
+            onPressed: () =>
+                pushPage(context, LeagueRankingScreen(leagueId: league.id)),
+            child: Text(
+              ranking.length > _collapsedCount
+                  ? 'Ver ranking completo (${ranking.length})'
+                  : 'Ver detalhes da liga',
             ),
           ),
+        ),
       ],
     );
   }

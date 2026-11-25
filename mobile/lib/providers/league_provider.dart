@@ -35,7 +35,7 @@ class LeagueProvider extends ChangeNotifier {
   }
 
   // Carrega as ligas via GET /users/:userId/leagues e o ranking de cada uma.
-  // Sem essa rota no backend, usa os ids guardados no aparelho.
+  // Sem conexão, usa os ids guardados no aparelho.
   Future<void> load(String userId, {bool force = false}) async {
     if (_loadedUserId == userId && !force) return;
     _loadedUserId = userId;
@@ -49,14 +49,14 @@ class LeagueProvider extends ChangeNotifier {
           .map((league) => league['id'] as String)
           .toList();
     } catch (_) {
-      // Rota indisponível: mantém as ligas guardadas no aparelho
+      // Servidor indisponível: mantém as ligas guardadas no aparelho
     }
 
-    final loaded = <LeagueModel>[];
-    for (final id in ids) {
-      final league = await _fetchLeague(id);
-      if (league != null) loaded.add(league);
-    }
+    // Rankings buscados em paralelo; se um falhar, fica o que já estava na tela
+    final fetched = await Future.wait(
+      ids.map((id) async => await _fetchLeague(id) ?? byId(id)),
+    );
+    final loaded = fetched.whereType<LeagueModel>().toList();
 
     _leagues = loaded;
     _isLoading = false;

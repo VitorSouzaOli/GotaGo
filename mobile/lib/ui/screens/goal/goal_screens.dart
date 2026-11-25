@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/utils/formatters.dart';
+import '../../../providers/achievement_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/water_provider.dart';
 import '../../navigation/shell_controller.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/flow_page.dart';
+import '../achievements/achievement_detail_screen.dart';
 import '../common/status_screens.dart';
 import '../home/home_shell.dart';
 import '../settings/notification_screens.dart';
@@ -219,6 +221,7 @@ class _EditGoalScreenState extends State<EditGoalScreen> {
 
     final auth = context.read<AuthProvider>();
     final water = context.read<WaterProvider>();
+    final achievements = context.read<AchievementProvider>();
     final goal = int.parse(_controller.text.trim());
 
     final ok = await auth.updateProfile(dailyGoal: goal);
@@ -236,7 +239,15 @@ class _EditGoalScreenState extends State<EditGoalScreen> {
     }
 
     await water.setDailyGoal(auth.user!.id, goal);
-    if (mounted) replacePage(context, const GoalSavedScreen());
+    // A meta menor pode ter completado uma sequência
+    final unlocked = await achievements.reload(auth.user!.id);
+    if (!mounted) return;
+    replacePage(
+      context,
+      unlocked.isEmpty
+          ? const GoalSavedScreen()
+          : AchievementUnlockedScreen(name: unlocked.last),
+    );
   }
 
   @override

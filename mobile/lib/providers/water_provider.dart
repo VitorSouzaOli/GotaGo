@@ -14,8 +14,13 @@ class WaterLogResult {
   final bool streakUpdated;
   final List<String> newAchievements;
   final String? warning;
+  // Sequência calculada pelo servidor (null no modo demo)
+  final int? currentStreak;
+  final int? maxStreak;
 
   WaterLogResult({
+    this.currentStreak,
+    this.maxStreak,
     required this.amount,
     required this.previousTotal,
     required this.totalToday,
@@ -108,7 +113,7 @@ class WaterProvider extends ChangeNotifier {
   }
 
   // Carrega o histórico: primeiro o guardado no aparelho, depois o do backend.
-  // Se o backend ainda não tiver GET /users/:userId/water-logs, fica o local.
+  // Sem conexão, fica o local.
   Future<void> load(String userId, {bool force = false}) async {
     if (_loadedUserId == userId && !force) return;
     if (_loadedUserId != userId) {
@@ -130,7 +135,7 @@ class WaterProvider extends ChangeNotifier {
       _serverTotalToday = null;
       await _saveCache(userId);
     } catch (e) {
-      // Rota indisponível: mantém o histórico local
+      // Servidor indisponível: mantém o histórico local
       _offline = isConnectionError(e);
     } finally {
       _isLoading = false;
@@ -170,6 +175,8 @@ class WaterProvider extends ChangeNotifier {
         streakUpdated: data['streakUpdated'] == true,
         newAchievements: List<String>.from(data['newAchievements'] ?? []),
         warning: data['warning'],
+        currentStreak: (data['currentStreak'] as num?)?.toInt(),
+        maxStreak: (data['maxStreak'] as num?)?.toInt(),
       );
     } catch (e) {
       _offline = isConnectionError(e);
@@ -184,7 +191,7 @@ class WaterProvider extends ChangeNotifier {
     }
   }
 
-  // Correção via PATCH /water-logs/:id (rota ainda não existe no backend)
+  // Correção via PATCH /water-logs/:id
   Future<bool> updateLog(
     String userId,
     WaterLogModel log, {
@@ -206,7 +213,7 @@ class WaterProvider extends ChangeNotifier {
     });
   }
 
-  // Exclusão via DELETE /water-logs/:id (rota ainda não existe no backend)
+  // Exclusão via DELETE /water-logs/:id
   Future<bool> deleteLog(String userId, WaterLogModel log) {
     return _change(userId, () async {
       await _apiService.client.delete('/water-logs/${log.id}');

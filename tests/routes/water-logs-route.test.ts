@@ -36,6 +36,7 @@ beforeEach(async () => {
     maxStreak: 5,
   });
   prismaMock.user.update.mockResolvedValue({});
+  prismaMock.waterLog.findMany.mockResolvedValue([]);
   prismaMock.waterLog.create.mockImplementation(async ({ data }) => ({
     id: "log-1",
     createdAt: new Date("2026-11-21T15:00:00.000Z"),
@@ -127,7 +128,7 @@ describe("POST /water-logs", () => {
       expect(res.statusCode).toBe(201);
       expect(prismaMock.user.findUnique).toHaveBeenCalledWith({ where: { id: USER_ID } });
       expect(prismaMock.waterLog.create).toHaveBeenCalledWith({
-        data: { userId: USER_ID, amount: 300 },
+        data: { userId: USER_ID, amount: 300, dailyGoal: DAILY_GOAL },
       });
     });
 
@@ -160,7 +161,7 @@ describe("POST /water-logs", () => {
       expect(res.json().warning).toBeUndefined();
     });
 
-    it("soma o dia entre 00:00:00.000 e 23:59:59.999 do horário do servidor", async () => {
+    it("soma o dia de 00:00 até a meia-noite seguinte, no horário do servidor", async () => {
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(new Date(2026, 10, 21, 15, 30, 12));
 
@@ -169,8 +170,8 @@ describe("POST /water-logs", () => {
       const { where, _sum } = prismaMock.waterLog.aggregate.mock.calls[0][0];
       expect(_sum).toEqual({ amount: true });
       expect(where.userId).toBe(USER_ID);
-      expect(where.createdAt.gte).toEqual(new Date(2026, 10, 21, 0, 0, 0, 0));
-      expect(where.createdAt.lte).toEqual(new Date(2026, 10, 21, 23, 59, 59, 999));
+      expect(where.createdAt.gte).toEqual(new Date(2026, 10, 21));
+      expect(where.createdAt.lt).toEqual(new Date(2026, 10, 22));
     });
 
     it("trata soma nula (sem registros) como 0", async () => {
@@ -214,98 +215,66 @@ describe("POST /water-logs", () => {
   });
 
   describe("streak (dias seguidos batendo a meta)", () => {
-    it("incrementa ao cruzar a meta neste registro", async () => {
-      totalTodayIs(2100); // antes: 1600 (< 2000)
+    // um registro `daysAgo` dias antes de hoje
+    const logOn = (daysAgo: number, amount = DAILY_GOAL, dailyGoal = DAILY_GOAL) => {
+      const createdAt = new Date();
+      createdAt.setHours(12, 0, 0, 0);
+      createdAt.setDate(createdAt.getDate() - daysAgo);
+      return { amount, createdAt, dailyGoal };
+    };
+
+    it("calcula a sequência pelos registros e grava no usuário", async () => {
+      prismaMock.waterLog.findMany.mockResolvedValue([logOn(2), logOn(1), logOn(0)]);
+      totalTodayIs(2000);
 
       const res = await addWater({ amount: 500 });
 
-      expect(res.json()).toMatchObject({ goalReached: true, streakUpdated: true });
+      expect(res.json()).toMatchObject({ currentStreak: 3, maxStreak: 3, streakUpdated: true });
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: USER_ID },
-        data: { currentStreak: 3, maxStreak: 5 },
+        data: { currentStreak: 3, maxStreak: 3 },
       });
     });
 
-    it("conta como meta batida com exatamente o valor da meta", async () => {
-      totalTodayIs(DAILY_GOAL);
+    it("trava a linha do usuário antes de gravar", async () => {
+      await addWater({ amount: 300 });
 
-      const res = await addWater({ amount: 500 });
-
-      expect(res.json()).toMatchObject({ goalReached: true, streakUpdated: true });
+      expect(prismaMock.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prismaMock.waterLog.create.mock.invocationCallOrder[0],
+      );
     });
 
-    it("não conta com 1ml a menos que a meta", async () => {
-      totalTodayIs(DAILY_GOAL - 1);
+    it.each([
+      ["ao cruzar a meta neste registro", 2100, 500, true],
+      ["com exatamente o valor da meta", DAILY_GOAL, 500, true],
+      ["com um único registro grande", 2500, 2500, true],
+      ["com 1ml a menos que a meta", DAILY_GOAL - 1, 500, false],
+      ["com a meta já batida antes", 2600, 300, false],
+    ])("define streakUpdated %s", async (_nome, total, amount, expected) => {
+      totalTodayIs(total);
 
-      const res = await addWater({ amount: 500 });
+      const res = await addWater({ amount });
 
-      expect(res.json()).toMatchObject({ goalReached: false, streakUpdated: false });
-      expect(prismaMock.user.update).not.toHaveBeenCalled();
-    });
-
-    it("não incrementa de novo se a meta já tinha sido batida antes", async () => {
-      totalTodayIs(2600); // antes: 2300 (>= 2000)
-
-      const res = await addWater({ amount: 300 });
-
-      expect(res.json()).toMatchObject({ goalReached: true, streakUpdated: false });
-      expect(prismaMock.user.update).not.toHaveBeenCalled();
-    });
-
-    it("incrementa quando um único registro grande já passa a meta", async () => {
-      totalTodayIs(2500); // antes: 0
-
-      const res = await addWater({ amount: 2500 });
-
-      expect(res.json().streakUpdated).toBe(true);
-    });
-
-    it("atualiza o recorde (maxStreak) quando o streak o ultrapassa", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({
-        id: USER_ID,
-        dailyGoal: DAILY_GOAL,
-        currentStreak: 5,
-        maxStreak: 5,
-      });
-      totalTodayIs(2100);
-
-      await addWater({ amount: 500 });
-
-      expect(prismaMock.user.update).toHaveBeenCalledWith({
-        where: { id: USER_ID },
-        data: { currentStreak: 6, maxStreak: 6 },
-      });
-    });
-
-    it("preserva um recorde maior que o streak atual", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({
-        id: USER_ID,
-        dailyGoal: DAILY_GOAL,
-        currentStreak: 0,
-        maxStreak: 12,
-      });
-      totalTodayIs(2100);
-
-      await addWater({ amount: 500 });
-
-      expect(prismaMock.user.update).toHaveBeenCalledWith({
-        where: { id: USER_ID },
-        data: { currentStreak: 1, maxStreak: 12 },
-      });
+      expect(res.json().streakUpdated).toBe(expected);
     });
 
     it("respeita a meta personalizada de cada usuário", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({
-        id: USER_ID,
-        dailyGoal: 3500,
-        currentStreak: 0,
-        maxStreak: 0,
-      });
+      prismaMock.user.findUnique.mockResolvedValue({ id: USER_ID, dailyGoal: 3500 });
       totalTodayIs(3000);
 
       const res = await addWater({ amount: 500 });
 
       expect(res.json()).toMatchObject({ dailyGoal: 3500, goalReached: false });
+    });
+
+    it.each([
+      ["decimal", 250.5],
+      ["acima do máximo", 5001],
+    ])("rejeita quantidade %s com 400", async (_nome, amount) => {
+      const res = await addWater({ amount });
+
+      expect(res.statusCode).toBe(400);
+      expect(prismaMock.waterLog.create).not.toHaveBeenCalled();
     });
   });
 
