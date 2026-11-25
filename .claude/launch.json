@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gotago-web-teste",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:/Users/pedro/AppData/Local/Temp/claude/c550aed354ddc94c/75c9d512-a589-48d0-a517-184e9d2623ec/scratchpad/webstack.mjs"],
+      "port": 5055
+    }
+  ]
+}
