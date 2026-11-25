@@ -1,0 +1,969 @@
+openapi: 3.0.3
+info:
+  title: GotaGo API
+  version: 1.0.0
+  description: |
+    API do GotaGo, app de hidratação em equipe: registro de água, meta diária,
+    sequência de dias com a meta cumprida, conquistas e ligas entre amigos.
+
+    **Autenticação:** `POST /sessions` (login) e `POST /users` (cadastro) devolvem um
+    `token` JWT válido por 7 dias. Nas demais rotas, envie
+    `Authorization: Bearer <token>`. Para testar aqui, faça login, copie o `token`
+    da resposta e clique em **Authorize**.
+
+    **Erros:** sempre no formato `{ "error": "mensagem" }`. Dados inválidos
+    respondem 400 com a lista `issues` dos campos errados.
+
+    **Limite de tentativas:** algumas rotas aceitam poucas chamadas por minuto
+    por IP e respondem 429 com o cabeçalho `retry-after` (em segundos).
+
+    **Datas:** sempre ISO 8601 em UTC (ex.: `2026-11-25T12:30:00.000Z`). "Hoje" e
+    os dias do histórico seguem o fuso do servidor (variável `TZ`).
+servers:
+  - url: http://localhost:3333
+    description: Desenvolvimento local
+
+tags:
+  - name: Sistema
+  - name: Sessão
+    description: Login e recuperação de senha
+  - name: Usuários
+    description: Cadastro, perfil, meta diária e conta
+  - name: Água
+    description: Registros de consumo, consumo do dia e histórico
+  - name: Ligas
+    description: Ligas entre amigos, convites e ranking de constância
+  - name: Conquistas
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Sistema]
+      summary: Verifica se a API está no ar
+      security: []
+      responses:
+        "200":
+          description: API funcionando
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  service: { type: string, example: GotaGo API }
+
+  # ---------------------------------------------------------------- Sessão
+  /sessions:
+    post:
+      tags: [Sessão]
+      summary: Login
+      description: Aceita e-mail ou username, sem diferenciar maiúsculas.
+      security: []
+      x-rate-limit: 10 por minuto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login, password]
+              properties:
+                login:
+                  type: string
+                  description: E-mail ou username
+                  example: teste@gotago.dev
+                password: { type: string, example: "123456" }
+      responses:
+        "200":
+          description: Login feito
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "400":
+          description: '`Invalid credentials` (e-mail/username ou senha errados) ou dados inválidos'
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorOrValidation" }
+              example: { error: Invalid credentials }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /passwords/forgot:
+    post:
+      tags: [Sessão]
+      summary: Pede o link de recuperação de senha por e-mail
+      description: |
+        A resposta é a mesma com ou sem conta, para não revelar quais e-mails
+        estão cadastrados. O link vale 1 hora, funciona uma única vez, e um
+        pedido novo invalida os anteriores. Sem servidor de e-mail configurado,
+        o link aparece no log da API.
+      security: []
+      x-rate-limit: 5 a cada 15 minutos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "202":
+          description: Pedido aceito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Se o e-mail estiver cadastrado, enviaremos as instruções.
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /passwords/reset:
+    get:
+      tags: [Sessão]
+      summary: Página web aberta pelo link do e-mail
+      description: O token vem depois do `#` na URL (`/passwords/reset#token=...`) e a página chama o `POST` abaixo.
+      security: []
+      responses:
+        "200":
+          description: Página HTML para criar a nova senha
+          content:
+            text/html:
+              schema: { type: string }
+    post:
+      tags: [Sessão]
+      summary: Grava a nova senha usando o token do link
+      security: []
+      x-rate-limit: 10 por minuto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string, maxLength: 200 }
+                password: { $ref: "#/components/schemas/Password" }
+      responses:
+        "204": { description: Senha alterada }
+        "400":
+          description: Link inválido, expirado ou já usado, ou dados inválidos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorOrValidation" }
+              example: { error: Link inválido ou expirado. Peça um novo. }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  # -------------------------------------------------------------- Usuários
+  /users:
+    post:
+      tags: [Usuários]
+      summary: Cadastro
+      description: |
+        Cria a conta e já devolve o token. A meta diária é a `customDailyGoal`,
+        se enviada; senão, é calculada pelo peso: **35 ml por kg, nunca abaixo
+        de 2.000 ml** (2.000 ml sem peso). Metas acima de 4.000 ml vêm com `warning`.
+      security: []
+      x-rate-limit: 10 por minuto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, username, email, password]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 80, example: Maria Silva }
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 70
+                  pattern: "^[a-z0-9._-]+$"
+                  description: Gravado em minúsculas. Sem `@`.
+                  example: maria
+                email: { type: string, format: email, example: maria@gotago.dev }
+                password: { $ref: "#/components/schemas/Password" }
+                weightKg: { type: number, exclusiveMinimum: true, minimum: 0, maximum: 500, example: 70 }
+                avatarUrl: { type: string, format: uri, description: Só http ou https }
+                customDailyGoal: { $ref: "#/components/schemas/DailyGoal" }
+      responses:
+        "201":
+          description: Conta criada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AuthResponse"
+                  - type: object
+                    properties:
+                      warning: { $ref: "#/components/schemas/GoalWarning" }
+        "400":
+          description: '`Email already exists`, `Username already exists` ou dados inválidos'
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorOrValidation" }
+              example: { error: Email already exists }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /users/me:
+    get:
+      tags: [Usuários]
+      summary: Perfil de quem está logado
+      responses:
+        "200":
+          description: Perfil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/UserNotFound" }
+
+  /users/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/SelfUserId"
+    patch:
+      tags: [Usuários]
+      summary: Edita nome, peso e meta diária
+      description: |
+        Envie ao menos um campo. A nova meta vale a partir de hoje (os dias
+        anteriores mantêm a meta da época), a sequência é recalculada e, se a
+        mudança completar uma conquista, ela vem em `newAchievements`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name: { type: string, minLength: 2, maxLength: 80 }
+                weight: { type: number, exclusiveMinimum: true, minimum: 0, maximum: 500 }
+                dailyGoal: { $ref: "#/components/schemas/DailyGoal" }
+      responses:
+        "200":
+          description: Perfil atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+                  newAchievements: { $ref: "#/components/schemas/NewAchievements" }
+                  warning: { $ref: "#/components/schemas/GoalWarning" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UserNotFound" }
+    delete:
+      tags: [Usuários]
+      summary: Exclui a conta
+      description: |
+        Apaga registros, participações e conquistas. Ligas criadas pela pessoa
+        passam ao membro mais antigo; ligas sem mais ninguém são apagadas.
+      responses:
+        "204": { description: Conta excluída }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UserNotFound" }
+
+  /users/{userId}/password:
+    parameters:
+      - $ref: "#/components/parameters/SelfUserId"
+    patch:
+      tags: [Usuários]
+      summary: Altera a senha (logado)
+      x-rate-limit: 10 por minuto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { $ref: "#/components/schemas/Password" }
+      responses:
+        "204": { description: Senha alterada }
+        "400":
+          description: '`Invalid credentials` (senha atual errada) ou dados inválidos'
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorOrValidation" }
+              example: { error: Invalid credentials }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UserNotFound" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  # ------------------------------------------------------------------ Água
+  /water-logs:
+    post:
+      tags: [Água]
+      summary: Registra água consumida
+      description: |
+        O usuário vem do token. Devolve o total do dia, a sequência recalculada,
+        `streakUpdated: true` no registro que fez o dia cruzar a meta, as
+        conquistas desbloqueadas agora e um `warning` se o dia passar de 4.000 ml.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { $ref: "#/components/schemas/Amount" }
+      responses:
+        "201":
+          description: Registro criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  waterLog:
+                    allOf:
+                      - $ref: "#/components/schemas/WaterLog"
+                      - type: object
+                        properties:
+                          userId: { type: string, format: uuid }
+                          dailyGoal:
+                            type: integer
+                            description: Meta que valia no momento do registro
+                  totalToday: { type: integer, example: 1550 }
+                  dailyGoal: { type: integer, example: 2500 }
+                  currentStreak: { type: integer, example: 6 }
+                  maxStreak: { type: integer, example: 8 }
+                  goalReached: { type: boolean }
+                  streakUpdated: { type: boolean }
+                  newAchievements: { $ref: "#/components/schemas/NewAchievements" }
+                  warning:
+                    type: string
+                    description: Só quando o total do dia passa de 4.000 ml
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/UserNotFound" }
+
+  /water-logs/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Água]
+      summary: Corrige a quantidade ou o horário de um registro
+      description: |
+        Envie ao menos um campo. O horário não pode estar no futuro nem mudar
+        de dia (para não preencher dias perdidos e inflar a sequência).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                amount: { $ref: "#/components/schemas/Amount" }
+                createdAt:
+                  type: string
+                  format: date-time
+                  description: ISO 8601 com fuso (ex. `Z` ou `-03:00`)
+      responses:
+        "200":
+          description: Registro corrigido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  waterLog: { $ref: "#/components/schemas/WaterLog" }
+                  currentStreak: { type: integer }
+                  maxStreak: { type: integer }
+                  newAchievements: { $ref: "#/components/schemas/NewAchievements" }
+        "400":
+          description: Horário no futuro, horário em outro dia ou dados inválidos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorOrValidation" }
+              example: { error: O horário precisa continuar no mesmo dia. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: O registro não existe ou é de outra pessoa
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: Registro não encontrado. }
+    delete:
+      tags: [Água]
+      summary: Exclui um registro
+      responses:
+        "204": { description: Registro excluído (a sequência é recalculada) }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: O registro não existe ou é de outra pessoa
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: Registro não encontrado. }
+
+  /water-logs/today:
+    get:
+      tags: [Água]
+      summary: Consumo de hoje
+      responses:
+        "200":
+          description: Total, meta, sequência e registros do dia (mais recente primeiro)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date: { type: string, format: date, example: "2026-11-25" }
+                  totalToday: { type: integer, example: 1250 }
+                  dailyGoal: { type: integer, example: 2500 }
+                  goalReached: { type: boolean }
+                  currentStreak: { type: integer }
+                  maxStreak: { type: integer }
+                  logs:
+                    type: array
+                    items: { $ref: "#/components/schemas/WaterLog" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/UserNotFound" }
+
+  /water-logs/history:
+    get:
+      tags: [Água]
+      summary: Total por dia (para o gráfico)
+      description: Inclui os dias sem registro (total 0). Do mais recente para o mais antigo.
+      parameters:
+        - $ref: "#/components/parameters/Days7"
+      responses:
+        "200":
+          description: Histórico por dia
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dailyGoal: { type: integer, example: 2500 }
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string, format: date, example: "2026-11-25" }
+                        total: { type: integer, example: 1250 }
+                        goalReached:
+                          type: boolean
+                          description: Usa a meta que valia naquele dia
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/UserNotFound" }
+
+  /users/{userId}/water-logs:
+    parameters:
+      - $ref: "#/components/parameters/SelfUserId"
+    get:
+      tags: [Água]
+      summary: Registros dos últimos dias
+      description: Usada pelo app na Home e no Histórico. Mais recente primeiro.
+      parameters:
+        - name: days
+          in: query
+          description: Quantos dias, contando hoje
+          schema: { type: integer, minimum: 1, maximum: 90, default: 30 }
+      responses:
+        "200":
+          description: Registros
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  waterLogs:
+                    type: array
+                    items: { $ref: "#/components/schemas/WaterLog" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  # ----------------------------------------------------------------- Ligas
+  /leagues:
+    get:
+      tags: [Ligas]
+      summary: Ligas de quem está logado
+      responses:
+        "200": { $ref: "#/components/responses/LeagueList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Ligas]
+      summary: Cria uma liga
+      description: Quem cria vira administrador e primeiro membro. O código de convite é gerado no formato `GOTA-XXXX`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { $ref: "#/components/schemas/LeagueName" }
+                description: { $ref: "#/components/schemas/LeagueDescription" }
+                endDate: { type: string, format: date-time, description: Depois desta data ninguém mais entra }
+      responses:
+        "201":
+          description: Liga criada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  league:
+                    allOf:
+                      - $ref: "#/components/schemas/League"
+                      - type: object
+                        properties:
+                          members:
+                            type: array
+                            items: { $ref: "#/components/schemas/Membership" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/UserNotFound" }
+
+  /users/{userId}/leagues:
+    parameters:
+      - $ref: "#/components/parameters/SelfUserId"
+    get:
+      tags: [Ligas]
+      summary: Ligas do usuário (mesmo resultado de GET /leagues)
+      responses:
+        "200": { $ref: "#/components/responses/LeagueList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /leagues/code/{code}:
+    get:
+      tags: [Ligas]
+      summary: Prévia da liga pelo código, antes de entrar
+      x-rate-limit: 20 por minuto (junto com POST /leagues/join)
+      parameters:
+        - $ref: "#/components/parameters/LeagueCode"
+      responses:
+        "200":
+          description: Liga encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  league:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      name: { type: string, example: Time do gole }
+                      code: { type: string, example: GOTA-AB12 }
+                      memberCount: { type: integer, example: 5 }
+                      ownerName: { type: string, example: Marina Alves }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/LeagueCodeNotFound" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /leagues/join:
+    post:
+      tags: [Ligas]
+      summary: Entra numa liga pelo código de convite
+      x-rate-limit: 20 por minuto (junto com GET /leagues/code/{code})
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  maxLength: 30
+                  description: Aceita `GOTA-AB12`, `gotaab12` ou só `ab12`
+                  example: GOTA-AB12
+      responses:
+        "201":
+          description: Entrou na liga
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: "Entraste na liga 'Time do gole' com sucesso!" }
+                  membership: { $ref: "#/components/schemas/Membership" }
+        "400":
+          description: '`Já fazes parte desta liga.`, `Esta liga já terminou.` ou dados inválidos'
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorOrValidation" }
+              example: { error: Já fazes parte desta liga. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/LeagueCodeNotFound" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /leagues/{id}:
+    parameters:
+      - $ref: "#/components/parameters/LeagueId"
+    patch:
+      tags: [Ligas]
+      summary: Renomeia ou muda a descrição (administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name: { $ref: "#/components/schemas/LeagueName" }
+                description: { $ref: "#/components/schemas/LeagueDescription" }
+      responses:
+        "200":
+          description: Liga atualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  league: { $ref: "#/components/schemas/League" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotLeagueAdmin" }
+        "404": { $ref: "#/components/responses/LeagueNotFound" }
+
+  /leagues/{id}/code:
+    parameters:
+      - $ref: "#/components/parameters/LeagueId"
+    post:
+      tags: [Ligas]
+      summary: Gera um novo código de convite (administrador)
+      description: O código anterior deixa de funcionar.
+      responses:
+        "200":
+          description: Novo código
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string, example: GOTA-7K2M }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotLeagueAdmin" }
+        "404": { $ref: "#/components/responses/LeagueNotFound" }
+
+  /leagues/{id}/leaderboard:
+    parameters:
+      - $ref: "#/components/parameters/LeagueId"
+    get:
+      tags: [Ligas]
+      summary: Ranking de constância (só para participantes)
+      description: Ordenado pelo maior `currentStreak` (dias seguidos com a meta cumprida).
+      responses:
+        "200":
+          description: Ranking
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  league:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      name: { type: string }
+                      description: { type: string, nullable: true }
+                      code: { type: string }
+                      ownerId: { type: string, format: uuid }
+                  leaderboard:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        username: { type: string }
+                        avatarUrl: { type: string, nullable: true }
+                        currentStreak: { type: integer }
+                        maxStreak: { type: integer }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/LeagueNotFound" }
+
+  /leagues/{id}/members/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/LeagueId"
+      - name: userId
+        in: path
+        required: true
+        description: O próprio usuário (sair da liga) ou outro membro (o administrador remove)
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Ligas]
+      summary: Sai da liga ou remove um membro
+      description: Se o administrador sair, o membro mais antigo assume; sem ninguém, a liga é apagada.
+      responses:
+        "204": { description: Membro removido }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotLeagueAdmin" }
+        "404":
+          description: Liga não encontrada, ou a pessoa não participa dela
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: Essa pessoa não participa da liga. }
+
+  # ------------------------------------------------------------- Conquistas
+  /users/{userId}/achievements:
+    parameters:
+      - $ref: "#/components/parameters/SelfUserId"
+    get:
+      tags: [Conquistas]
+      summary: Todas as conquistas, desbloqueadas ou não
+      responses:
+        "200":
+          description: Conquistas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  achievements:
+                    type: array
+                    items: { $ref: "#/components/schemas/Achievement" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UserNotFound" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de POST /sessions ou POST /users (expira em 7 dias)
+
+  parameters:
+    SelfUserId:
+      name: userId
+      in: path
+      required: true
+      description: Precisa ser o próprio usuário do token (senão, 403)
+      schema: { type: string, format: uuid }
+    LeagueId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    LeagueCode:
+      name: code
+      in: path
+      required: true
+      description: Aceita `GOTA-AB12`, `gotaab12` ou só `ab12`
+      schema: { type: string, maxLength: 30, example: GOTA-AB12 }
+    Days7:
+      name: days
+      in: query
+      description: Quantos dias, contando hoje
+      schema: { type: integer, minimum: 1, maximum: 90, default: 7 }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, example: Mensagem do erro }
+    ValidationError:
+      type: object
+      properties:
+        error: { type: string, example: Dados inválidos. }
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string, example: dailyGoal }
+              message: { type: string, example: Custom daily goal must be at least 2000ml }
+    ErrorOrValidation:
+      oneOf:
+        - $ref: "#/components/schemas/Error"
+        - $ref: "#/components/schemas/ValidationError"
+
+    Password:
+      type: string
+      minLength: 6
+      maxLength: 72
+      description: O app exige ainda 8+ caracteres com letras e números
+    DailyGoal:
+      type: integer
+      minimum: 2000
+      maximum: 10000
+      description: Meta diária em ml (mínimo 2.000)
+      example: 2500
+    Amount:
+      type: integer
+      minimum: 1
+      maximum: 5000
+      description: Quantidade em ml (por registro)
+      example: 250
+    GoalWarning:
+      type: string
+      description: Só quando a meta passa de 4.000 ml
+      example: Your custom daily goal exceeds 4000ml. Please consult with a healthcare professional.
+    NewAchievements:
+      type: array
+      description: Nomes das conquistas desbloqueadas nesta requisição
+      items: { type: string }
+      example: [Primeira Gota]
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: Maria Silva }
+        username: { type: string, example: maria }
+        email: { type: string, format: email, example: maria@gotago.dev }
+        avatarUrl: { type: string, nullable: true }
+        weight: { type: number, nullable: true, example: 70 }
+        dailyGoal: { type: integer, example: 2450 }
+        currentStreak: { type: integer, description: Dias seguidos com a meta cumprida, example: 6 }
+        maxStreak: { type: integer, example: 8 }
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string, description: JWT para o cabeçalho Authorization }
+        user: { $ref: "#/components/schemas/User" }
+
+    WaterLog:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        amount: { type: integer, example: 250 }
+        createdAt: { type: string, format: date-time }
+
+    LeagueName: { type: string, minLength: 3, maxLength: 50, example: Time do gole }
+    LeagueDescription: { type: string, maxLength: 200, example: "Uma rotina saudável, juntos." }
+    League:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        code: { type: string, example: GOTA-AB12 }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time, nullable: true }
+        ownerId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    LeagueSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        code: { type: string, example: GOTA-AB12 }
+        endDate: { type: string, format: date-time, nullable: true }
+        ownerId: { type: string, format: uuid }
+        isOwner: { type: boolean }
+        memberCount: { type: integer }
+        joinedAt: { type: string, format: date-time }
+    Membership:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        joinedAt: { type: string, format: date-time }
+        leagueId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+
+    Achievement:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, example: STREAK_7_DAYS }
+        name: { type: string, example: Semana Perfeita }
+        description: { type: string }
+        isUnlocked: { type: boolean }
+        unlockedAt: { type: string, format: date-time, nullable: true }
+
+  responses:
+    Unauthorized:
+      description: Token ausente, inválido ou expirado
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: Token inválido ou ausente. }
+    Forbidden:
+      description: Acesso a dados de outra pessoa (ou ranking de liga da qual não participa)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: Acesso negado. }
+    NotLeagueAdmin:
+      description: Só o administrador da liga pode fazer isso
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: Apenas o administrador da liga pode fazer isso. }
+    UserNotFound:
+      description: "Usuário não encontrado (ex.: conta excluída com token antigo)"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: Utilizador não encontrado. }
+    LeagueNotFound:
+      description: Liga não encontrada
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: Liga não encontrada. }
+    LeagueCodeNotFound:
+      description: Nenhuma liga com este código
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: Liga não encontrada com este código. }
+    ValidationError:
+      description: Dados inválidos
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ValidationError" }
+    TooManyRequests:
+      description: Muitas tentativas; veja o cabeçalho `retry-after`
+      headers:
+        retry-after:
+          description: Segundos até poder tentar de novo
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: Muitas tentativas. Aguarde um pouco e tente de novo. }
+    LeagueList:
+      description: Ligas em que o usuário participa (entrada mais recente primeiro)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              leagues:
+                type: array
+                items: { $ref: "#/components/schemas/LeagueSummary" }
