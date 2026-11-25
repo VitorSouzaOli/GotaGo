@@ -1,6 +1,9 @@
 import Fastify, { FastifyServerOptions } from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
+import swagger from "@fastify/swagger";
+import swaggerUi from "@fastify/swagger-ui";
+import { fileURLToPath } from "node:url";
 import { userRoutes } from "./routes/user-routes.js";
 import { sessionRoutes } from "./routes/session-routes.js";
 import { passwordRoutes } from "./routes/password-routes.js";
@@ -34,6 +37,16 @@ export function buildApp({ jwtSecret, corsOrigin, logger = false, trustProxy = f
 
   // JWT: habilita criar (jwtSign) e verificar (jwtVerify) tokens com a chave secreta.
   app.register(jwt, { secret: jwtSecret });
+
+  // Documentação: docs/openapi.yaml, com Swagger UI em /docs (JSON em /docs/json)
+  app.register(swagger, {
+    mode: "static",
+    specification: {
+      path: fileURLToPath(new URL("../docs/openapi.yaml", import.meta.url)),
+      baseDir: fileURLToPath(new URL("../docs", import.meta.url)),
+    },
+  });
+  app.register(swaggerUi, { routePrefix: "/docs" });
 
   app.get("/health", async () => {
     return { status: "ok", service: "GotaGo API" };

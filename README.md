@@ -148,7 +148,7 @@ Erros respondem `{ "error": "..." }`; dados inválidos incluem a lista `issues`.
 | `POST /users` | Pública. Cadastro: `name`, `username`, `email`, `password`, `weightKg?`, `customDailyGoal?`, `avatarUrl?`. Devolve `token` e `user` |
 | `POST /sessions` | Pública. Login: `login` (e-mail ou username) e `password` |
 | `GET /users/me` | Perfil atual |
-| `PATCH /users/:userId` | Altera `name`, `weight`, `dailyGoal` |
+| `PATCH /users/:userId` | Altera `name`, `weight`, `dailyGoal` (mínimo 2000) |
 | `PATCH /users/:userId/password` | `currentPassword`, `newPassword` |
 | `DELETE /users/:userId` | Exclui a conta; ligas passam ao membro mais antigo |
 | `POST /passwords/forgot` | Pública. `email`. Gera um link válido por 1 hora |
@@ -171,6 +171,15 @@ Erros respondem `{ "error": "..." }`; dados inválidos incluem a lista `issues`.
 | `DELETE /leagues/:id/members/:userId` | Sai da liga ou remove um membro |
 
 Há limite de tentativas por IP no cadastro, login, senhas e códigos de convite (429).
+
+## Meta diária
+
+- Calculada em [`calculate-water-goal.ts`](src/utils/calculate-water-goal.ts):
+  35 ml por kg de peso, **nunca abaixo de 2000 ml**.
+- A pessoa pode trocar a meta calculada por uma própria, sempre com no mínimo
+  2000 ml (no cadastro e no `PATCH /users/:userId`).
+- O app repete esse cálculo em `mobile/lib/core/utils/water_goal.dart`, para
+  mostrar a estimativa enquanto a pessoa digita. Mudou um, mude o outro.
 
 ## Regras de sequência
 

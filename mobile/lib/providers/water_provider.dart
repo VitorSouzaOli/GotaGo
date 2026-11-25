@@ -157,7 +157,7 @@ class WaterProvider extends ChangeNotifier {
     try {
       final response = await _apiService.client.post(
         '/water-logs',
-        data: {'userId': userId, 'amount': amount},
+        data: {'amount': amount},
       );
 
       final data = response.data as Map<String, dynamic>;

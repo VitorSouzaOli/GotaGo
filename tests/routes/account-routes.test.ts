@@ -88,7 +88,7 @@ describe("PATCH /users/:id", () => {
   it("desbloqueia na hora a conquista completada pela nova meta", async () => {
     vi.mocked(checkAndUnlockAchievements).mockResolvedValue(["3 Dias Hidratado"]);
 
-    const res = await send("PATCH", `/users/${USER_ID}`, { dailyGoal: 1500 });
+    const res = await send("PATCH", `/users/${USER_ID}`, { dailyGoal: 2000 });
 
     expect(res.json().newAchievements).toEqual(["3 Dias Hidratado"]);
     expect(checkAndUnlockAchievements).toHaveBeenCalledWith(USER_ID);
@@ -102,7 +102,7 @@ describe("PATCH /users/:id", () => {
   });
 
   it.each([
-    ["meta baixa", { dailyGoal: 999 }],
+    ["meta abaixo de 2000ml", { dailyGoal: 1999 }],
     ["peso negativo", { weight: -1 }],
     ["corpo vazio", {}],
   ])("rejeita %s", async (_nome, payload) => {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/water_goal.dart';
 import '../../../providers/achievement_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/water_provider.dart';
@@ -11,13 +12,15 @@ import '../../widgets/flow_page.dart';
 import '../achievements/achievement_detail_screen.dart';
 import '../common/status_screens.dart';
 import '../home/home_shell.dart';
+import '../profile/edit_profile_screen.dart';
 import '../settings/notification_screens.dart';
+import 'widgets/goal_choice.dart';
 
 // Resultado da tela de meta quando o cadastro falha por e-mail já usado
 const goalSetupEmailInUse = 'emailInUse';
 
 // "Vamos encontrar seu ritmo": última etapa do cadastro. O peso estima a meta
-// (35 ml/kg, mínimo 2.000), ou a pessoa define a meta manualmente.
+// (ver water_goal.dart), ou a pessoa define a própria (mínimo 2.000 ml).
 class GoalSetupScreen extends StatefulWidget {
   final String name;
   final String email;
@@ -37,8 +40,8 @@ class GoalSetupScreen extends StatefulWidget {
 class _GoalSetupScreenState extends State<GoalSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _weightController = TextEditingController();
-  final _goalController = TextEditingController(text: '2000');
-  bool _manual = false;
+  final _goalController = TextEditingController(text: '$minDailyGoal');
+  bool _useEstimate = true;
 
   @override
   void dispose() {
@@ -47,8 +50,7 @@ class _GoalSetupScreenState extends State<GoalSetupScreen> {
     super.dispose();
   }
 
-  double? get _weight =>
-      double.tryParse(_weightController.text.trim().replaceAll(',', '.'));
+  double? get _weight => parseDecimal(_weightController.text);
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
@@ -60,7 +62,9 @@ class _GoalSetupScreenState extends State<GoalSetupScreen> {
       email: widget.email,
       password: widget.password,
       weightKg: _weight,
-      customDailyGoal: _manual ? int.parse(_goalController.text.trim()) : null,
+      customDailyGoal: _useEstimate
+          ? null
+          : int.parse(_goalController.text.trim()),
     );
     if (!mounted) return;
 
@@ -92,8 +96,7 @@ class _GoalSetupScreenState extends State<GoalSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final weight = _weight;
-    final estimate = AuthProvider.estimateGoal(weight);
+    final estimate = estimateDailyGoal(_weight);
     final isLoading = context.watch<AuthProvider>().isLoading;
 
     return FlowPage(
@@ -117,54 +120,20 @@ class _GoalSetupScreenState extends State<GoalSetupScreen> {
                 helperText:
                     'Usado para estimar sua meta. Você pode ajustar depois.',
                 onChanged: (_) => setState(() {}),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) return null;
-                  final parsed = _weight;
-                  if (parsed == null || parsed < 20 || parsed > 300) {
-                    return 'Informe um peso entre 20 e 300 kg';
-                  }
-                  return null;
-                },
+                validator: validateWeight,
               ),
-              if (_manual) ...[
-                const SizedBox(height: 16),
-                AppTextField(
-                  label: 'Sua meta diária',
-                  hint: 'Ex.: 2500',
-                  controller: _goalController,
-                  suffixText: 'ml',
-                  keyboardType: TextInputType.number,
-                  helperText: 'A partir de 2.000 ml por dia.',
-                  onChanged: (_) => setState(() {}),
-                  validator: (value) {
-                    final goal = int.tryParse((value ?? '').trim());
-                    if (goal == null || goal < 2000) {
-                      return 'A meta precisa ser de pelo menos 2.000 ml';
-                    }
-                    if (goal > 6000) return 'Use no máximo 6.000 ml';
-                    return null;
-                  },
-                ),
-              ],
+              const SizedBox(height: 16),
+              GoalChoice(
+                estimate: estimate,
+                estimateBody: estimateExplanation(_weight),
+                useEstimate: _useEstimate,
+                onChanged: (value) => setState(() => _useEstimate = value),
+                customController: _goalController,
+              ),
             ],
           ),
         ),
-        if (!_manual)
-          FlowCard(
-            eyebrow: 'Ponto de partida do aplicativo',
-            headline: '${formatMl(estimate)} ml',
-            body: weight == null
-                ? 'Preencha o peso para receber uma estimativa personalizada.'
-                : 'Estimativa para ${weight.toStringAsFixed(weight % 1 == 0 ? 0 : 1)} '
-                      'kg: 35 ml por kg, a partir de 2.000 ml.',
-          ),
-        FlowCard(
-          title: 'A meta é sua',
-          body: _manual
-              ? 'Você está definindo o volume manualmente.'
-              : 'Você também pode definir o volume manualmente.',
-        ),
-        if (!_manual && estimate > WaterProvider.excessLimit)
+        if (_useEstimate && estimate > WaterProvider.excessLimit)
           const NoteCard(
             'Sua estimativa passa de 4.000 ml. Converse com um profissional de '
             'saúde antes de seguir essa meta.',
@@ -176,14 +145,14 @@ class _GoalSetupScreenState extends State<GoalSetupScreen> {
       ],
       primary: FlowAction('Continuar', _submit, loading: isLoading),
       secondary: FlowAction(
-        _manual ? 'Usar a estimativa pelo peso' : 'Definir meta manualmente',
-        () => setState(() => _manual = !_manual),
+        _useEstimate ? 'Definir meta manualmente' : 'Usar a meta calculada',
+        () => setState(() => _useEstimate = !_useEstimate),
       ),
     );
   }
 }
 
-// "Editar meta diária"
+// "Editar meta diária": meta calculada pelo perfil ou meta própria (mín. 2.000)
 class EditGoalScreen extends StatefulWidget {
   final String backLabel;
 
@@ -196,17 +165,25 @@ class EditGoalScreen extends StatefulWidget {
 class _EditGoalScreenState extends State<EditGoalScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _controller;
+  late bool _useEstimate;
 
   int get _currentGoal {
     final water = context.read<WaterProvider>();
     final user = context.read<AuthProvider>().user;
-    return water.dailyGoal ?? user?.dailyGoal ?? 2000;
+    return water.dailyGoal ?? user?.dailyGoal ?? minDailyGoal;
   }
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: '$_currentGoal');
+    final user = context.read<AuthProvider>().user;
+    final current = _currentGoal;
+    _controller = TextEditingController(
+      text: '${current < minDailyGoal ? minDailyGoal : current}',
+    );
+    // Começa marcada a opção que corresponde à meta de hoje
+    _useEstimate =
+        user?.weight != null && estimateDailyGoal(user!.weight) == current;
   }
 
   @override
@@ -222,7 +199,10 @@ class _EditGoalScreenState extends State<EditGoalScreen> {
     final auth = context.read<AuthProvider>();
     final water = context.read<WaterProvider>();
     final achievements = context.read<AchievementProvider>();
-    final goal = int.parse(_controller.text.trim());
+    final user = auth.user!;
+    final goal = _useEstimate
+        ? estimateDailyGoal(user.weight)
+        : int.parse(_controller.text.trim());
 
     final ok = await auth.updateProfile(dailyGoal: goal);
     if (!mounted) return;
@@ -252,7 +232,9 @@ class _EditGoalScreenState extends State<EditGoalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = context.watch<AuthProvider>().isLoading;
+    final auth = context.watch<AuthProvider>();
+    final user = auth.user;
+    final hasWeight = user?.weight != null;
 
     return FlowPage(
       backLabel: widget.backLabel,
@@ -266,22 +248,17 @@ class _EditGoalScreenState extends State<EditGoalScreen> {
         ),
         Form(
           key: _formKey,
-          child: AppTextField(
-            label: 'Nova meta diária',
-            hint: 'Ex.: 2500',
-            controller: _controller,
-            suffixText: 'ml',
-            keyboardType: TextInputType.number,
-            helperText: 'Você pode mudar este valor quando precisar.',
-            validator: (value) {
-              final goal = int.tryParse((value ?? '').trim());
-              if (goal == null || goal < 1000) {
-                return 'Use pelo menos 1.000 ml';
-              }
-              if (goal > 6000) return 'Use no máximo 6.000 ml';
-              return null;
-            },
-            onSubmitted: (_) => _save(),
+          child: GoalChoice(
+            estimate: estimateDailyGoal(user?.weight),
+            estimateBody: hasWeight
+                ? estimateExplanation(user!.weight)
+                : 'Informe seu peso em Editar perfil para calcular a meta.',
+            useEstimate: _useEstimate,
+            onChanged: (value) => setState(() => _useEstimate = value),
+            customController: _controller,
+            onEstimateUnavailable: hasWeight
+                ? null
+                : () => pushPage(context, const EditProfileScreen()),
           ),
         ),
         const FlowCard(
@@ -294,7 +271,7 @@ class _EditGoalScreenState extends State<EditGoalScreen> {
           'O ranking das ligas valoriza constância, não litros a mais.',
         ),
       ],
-      primary: FlowAction('Salvar meta', _save, loading: isLoading),
+      primary: FlowAction('Salvar meta', _save, loading: auth.isLoading),
       secondary: FlowAction('Cancelar', () => Navigator.pop(context)),
     );
   }

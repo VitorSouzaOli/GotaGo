@@ -8,7 +8,7 @@ import { authenticate } from "../middlewares/authenticate.js";
 import { authorizeSelf } from "../middlewares/authorize-self.js";
 import { rateLimit } from "../middlewares/rate-limit.js";
 import { refreshStreaks, withUserLock } from "../services/streak-service.js";
-import { calculateWaterGoal } from "../utils/calculate-water-goal.js";
+import { MIN_DAILY_GOAL, calculateWaterGoal } from "../utils/calculate-water-goal.js";
 import { checkAndUnlockAchievements } from "../utils/check-achieviments.js";
 import { dayRange } from "../utils/date-range.js";
 
@@ -24,12 +24,12 @@ const nameSchema = z
 
 const weightSchema = z.number().positive().max(500);
 
-// No cadastro a meta começa em 2000ml; depois a pessoa pode ajustá-la a partir de 1000ml
-const goalSchema = (minimum: number) =>
+// A meta nunca fica abaixo de 2000ml, no cadastro ou depois
+const goalSchema = () =>
   z
     .number()
     .int("Daily goal must be a whole number")
-    .min(minimum, `Custom daily goal must be at least ${minimum}ml`)
+    .min(MIN_DAILY_GOAL, `Custom daily goal must be at least ${MIN_DAILY_GOAL}ml`)
     .max(MAX_DAILY_GOAL, `Custom daily goal must be at most ${MAX_DAILY_GOAL}ml`);
 
 export async function userRoutes(app: FastifyInstance) {
@@ -50,7 +50,7 @@ export async function userRoutes(app: FastifyInstance) {
       password: newPasswordSchema,
       weightKg: weightSchema.optional(),
       avatarUrl: z.url({ protocol: /^https?$/ }).optional(),
-      customDailyGoal: goalSchema(2000).optional(),
+      customDailyGoal: goalSchema().optional(),
     });
 
     const body = registerBodySchema.parse(request.body);
@@ -128,7 +128,7 @@ export async function userRoutes(app: FastifyInstance) {
       .object({
         name: nameSchema.optional(),
         weight: weightSchema.optional(),
-        dailyGoal: goalSchema(1000).optional(),
+        dailyGoal: goalSchema().optional(),
       })
       .refine((body) => Object.values(body).some((value) => value !== undefined), {
         message: "Envie ao menos um campo para alterar.",

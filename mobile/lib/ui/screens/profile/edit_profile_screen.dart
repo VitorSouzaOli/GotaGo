@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/water_goal.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/water_provider.dart';
 import '../../widgets/app_text_field.dart';
@@ -9,7 +10,8 @@ import '../../widgets/flow_page.dart';
 import '../common/status_screens.dart';
 import '../goal/goal_screens.dart';
 
-// "Editar perfil": nome e peso. O peso não muda a meta sozinho.
+// "Editar perfil": nome e peso. O peso não muda a meta sozinho: se a meta
+// calculada mudar, o app pergunta antes de aplicar.
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -22,9 +24,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final _user = context.read<AuthProvider>().user!;
   late final _nameController = TextEditingController(text: _user.name);
   late final _weightController = TextEditingController(
-    text: _user.weight == null
-        ? ''
-        : _user.weight!.toStringAsFixed(_user.weight! % 1 == 0 ? 0 : 1),
+    text: _user.weight == null ? '' : formatDecimal(_user.weight!),
   );
 
   @override
@@ -34,14 +34,43 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  double? get _weight =>
-      double.tryParse(_weightController.text.trim().replaceAll(',', '.'));
+  double? get _weight => parseDecimal(_weightController.text);
+
+  // Peso novo gera outra meta calculada: pergunta se quer usá-la
+  Future<void> _offerCalculatedGoal() async {
+    final weight = _weight;
+    if (weight == null) return;
+
+    final auth = context.read<AuthProvider>();
+    final water = context.read<WaterProvider>();
+    final current = water.dailyGoal ?? auth.user!.dailyGoal;
+    final estimate = estimateDailyGoal(weight);
+    if (estimate == current) return;
+
+    final useIt = await showConfirmDialog(
+      context,
+      eyebrow: 'SUA META',
+      title: 'Usar a meta calculada?',
+      body:
+          'Com o peso novo, a meta calculada é de ${formatMl(estimate)} ml. '
+          'Sua meta atual é de ${formatMl(current)} ml.',
+      confirmLabel: 'Usar ${formatMl(estimate)} ml',
+      cancelLabel: 'Manter minha meta',
+      destructive: false,
+    );
+    if (!useIt || !mounted) return;
+
+    if (await auth.updateProfile(dailyGoal: estimate)) {
+      await water.setDailyGoal(auth.user!.id, estimate);
+    }
+  }
 
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
     final auth = context.read<AuthProvider>();
+    final weightChanged = _weight != _user.weight;
     final ok = await auth.updateProfile(
       name: _nameController.text.trim(),
       weight: _weight,
@@ -49,6 +78,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!mounted) return;
 
     if (ok) {
+      if (weightChanged) await _offerCalculatedGoal();
+      if (!mounted) return;
       Navigator.pop(context);
       showAppMessage(context, 'Perfil atualizado.');
     } else if (auth.failure == AuthFailure.offline) {

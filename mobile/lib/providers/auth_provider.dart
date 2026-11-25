@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
+import '../core/utils/water_goal.dart';
 import '../models/user_model.dart';
 import '../services/api_service.dart';
 
@@ -31,10 +32,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _status == AuthStatus.authenticated;
 
   // Estimativa da meta pelo peso: mesma regra do backend (35 ml/kg, mínimo 2.000)
-  static int estimateGoal(double? weightKg) {
-    if (weightKg == null || weightKg <= 0) return 2000;
-    return max((weightKg * 35).round(), 2000);
-  }
+  static int estimateGoal(double? weightKg) => estimateDailyGoal(weightKg);
 
   // Verifica se já temos um utilizador salvo no dispositivo
   Future<void> checkAuthStatus() async {

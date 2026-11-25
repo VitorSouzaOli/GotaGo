@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gotago/core/utils/formatters.dart';
+import 'package:gotago/core/utils/water_goal.dart';
 
 void main() {
   group('formatMl', () {
@@ -37,5 +38,19 @@ void main() {
     expect(formatClock(1260), '21:00');
     expect(formatInterval(120), 'A cada 2 h');
     expect(formatInterval(90), 'A cada 1h30');
+  });
+
+  group('estimateDailyGoal (igual ao backend)', () {
+    test('35 ml por kg, nunca abaixo de 2.000', () {
+      expect(estimateDailyGoal(null), 2000);
+      expect(estimateDailyGoal(50), 2000);
+      expect(estimateDailyGoal(80), 2800);
+      expect(estimateDailyGoal(70.5), 2468);
+    });
+
+    test('meta própria precisa de pelo menos 2.000 ml', () {
+      expect(validateDailyGoal('1999'), isNotNull);
+      expect(validateDailyGoal('2000'), isNull);
+    });
   });
 }

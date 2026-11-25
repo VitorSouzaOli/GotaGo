@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 
+import '../core/utils/water_goal.dart';
 import 'api_service.dart';
 
 // Modo demo: responde às rotas da API com dados falsos, sem precisar do backend.
@@ -253,9 +254,7 @@ class MockApiInterceptor extends Interceptor {
       'username': body['username'] ?? _user['username'],
       'email': body['email'] ?? _user['email'],
       'weight': weight ?? _user['weight'],
-      'dailyGoal':
-          customGoal?.toInt() ??
-          (weight != null ? max((weight * 35).round(), 2000) : 2000),
+      'dailyGoal': customGoal?.toInt() ?? estimateDailyGoal(weight?.toDouble()),
     };
     return _ok(options, {'user': _user}, status: 201);
   }
