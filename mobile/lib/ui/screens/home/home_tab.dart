@@ -67,8 +67,9 @@ class HomeTab extends StatelessWidget {
             total: water.totalToday,
             goal: water.dailyGoal ?? user.dailyGoal,
             selectedAmount: water.selectedAmount,
-            isAdding: water.isAdding,
+            isAdding: water.isAdding || water.isUndoing,
             onAdd: (amount) => registerWater(context, amount),
+            onUndo: water.lastLog == null ? null : () => undoLastWater(context),
             onCustomAmount: () =>
                 pushPage(context, const RegisterWaterScreen()),
             onEditGoal: () => pushPage(context, const EditGoalScreen()),

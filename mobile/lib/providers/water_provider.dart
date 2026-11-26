@@ -55,6 +55,7 @@ class WaterProvider extends ChangeNotifier {
   DateTime? _serverTotalDate;
   int _selectedAmount = 250;
   bool _isAdding = false;
+  bool _isUndoing = false;
   bool _isLoading = false;
   bool _offline = false;
   String? _errorMessage;
@@ -64,6 +65,7 @@ class WaterProvider extends ChangeNotifier {
   int? get dailyGoal => _dailyGoal;
   int get selectedAmount => _selectedAmount;
   bool get isAdding => _isAdding;
+  bool get isUndoing => _isUndoing;
   // Primeira carga em andamento, ainda sem nada guardado no aparelho
   bool get isLoading => _isLoading && _logs.isEmpty;
   // A última ação falhou por falta de conexão
@@ -221,6 +223,23 @@ class WaterProvider extends ChangeNotifier {
     });
   }
 
+  // "Desfazer": remove o registro mais recente de hoje; a cada toque, o anterior.
+  // Devolve o registro removido (null se não havia o que desfazer ou falhou)
+  Future<WaterLogModel?> undoLastLog(String userId) async {
+    final log = lastLog;
+    if (log == null || _isUndoing || _isAdding) return null;
+
+    _isUndoing = true;
+    notifyListeners();
+    try {
+      final ok = await deleteLog(userId, log);
+      return ok ? log : null;
+    } finally {
+      _isUndoing = false;
+      notifyListeners();
+    }
+  }
+
   // A meta mudou (Editar meta): o anel e o histórico passam a usar a nova
   Future<void> setDailyGoal(String userId, int goal) async {
     _dailyGoal = goal;
@@ -292,5 +311,6 @@ class WaterProvider extends ChangeNotifier {
     _selectedAmount = 250;
     _errorMessage = null;
     _offline = false;
+    _isUndoing = false;
   }
 }

@@ -420,6 +420,25 @@ Future<bool> deleteLogWithConfirmation(
   return ok;
 }
 
+// "Desfazer" da Home: retira o último registro de hoje, sem confirmação
+Future<void> undoLastWater(BuildContext context) async {
+  final water = context.read<WaterProvider>();
+  final auth = context.read<AuthProvider>();
+  final user = auth.user;
+  if (user == null) return;
+
+  final removed = await water.undoLastLog(user.id);
+  // Retirar pode desfazer a meta do dia e a sequência
+  if (removed != null) await auth.refreshUser();
+  if (!context.mounted) return;
+  showAppMessage(
+    context,
+    removed != null
+        ? 'Registro de ${formatMl(removed.amount)} ml desfeito.'
+        : water.errorMessage ?? 'Não foi possível desfazer.',
+  );
+}
+
 // "Editar registro": corrige quantidade e horário, ou exclui
 class EditLogScreen extends StatefulWidget {
   final WaterLogModel log;
