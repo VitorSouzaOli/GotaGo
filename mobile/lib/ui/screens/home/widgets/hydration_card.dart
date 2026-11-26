@@ -14,6 +14,8 @@ class HydrationCard extends StatelessWidget {
   final ValueChanged<int> onAdd;
   final VoidCallback onCustomAmount;
   final VoidCallback onEditGoal;
+  // Retira o último registro de hoje (null = nada a desfazer)
+  final VoidCallback? onUndo;
 
   const HydrationCard({
     super.key,
@@ -24,6 +26,7 @@ class HydrationCard extends StatelessWidget {
     required this.onAdd,
     required this.onCustomAmount,
     required this.onEditGoal,
+    this.onUndo,
   });
 
   static const _quickAmounts = [250, 500, 750];
@@ -194,10 +197,21 @@ class HydrationCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          TextButton.icon(
-            onPressed: isAdding ? null : onCustomAmount,
-            icon: const Icon(Icons.tune_rounded, size: 18),
-            label: const Text('Outra quantidade'),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 4,
+            children: [
+              TextButton.icon(
+                onPressed: isAdding ? null : onCustomAmount,
+                icon: const Icon(Icons.tune_rounded, size: 18),
+                label: const Text('Outra quantidade'),
+              ),
+              TextButton.icon(
+                onPressed: isAdding ? null : onUndo,
+                icon: const Icon(Icons.undo_rounded, size: 18),
+                label: const Text('Desfazer'),
+              ),
+            ],
           ),
         ],
       ),

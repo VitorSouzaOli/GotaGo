@@ -125,6 +125,25 @@ void main() {
     expect(find.text('+300 ml'), findsOneWidget);
   });
 
+  testWidgets('Desfazer retira os últimos registros de hoje, em ordem', (
+    tester,
+  ) async {
+    await openApp(tester);
+    final water = tester.element(find.byType(HomeShell)).read<WaterProvider>();
+    final logs = water.todayLogs;
+    expect(logs.length, greaterThanOrEqualTo(2));
+
+    await tapText(tester, 'Desfazer');
+    expect(
+      find.text('Registro de ${logs[0].amount} ml desfeito.'),
+      findsOneWidget,
+    );
+    expect(water.todayLogs.first.id, logs[1].id);
+
+    await tapText(tester, 'Desfazer');
+    expect(water.todayLogs.length, logs.length - 2);
+  });
+
   testWidgets('Entrar com código: inválido e depois RITMO6', (tester) async {
     await openApp(tester);
     await tester.tap(find.text('Ligas').last);
